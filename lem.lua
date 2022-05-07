@@ -393,6 +393,16 @@ local function manage_conditions()
     end
 end
 
+-- persistence may save loaded/registrred/func values so reset them at startup
+for _,event in ipairs(text_events) do
+    event.registered = false
+    event.func = nil
+end
+for _,event in ipairs(condition_events) do
+    event.loaded = false
+    event.funcs = nil
+end
+
 mq.imgui.init('LUA Event Manager', lem_ui)
 
 while not terminate do
