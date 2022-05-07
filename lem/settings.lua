@@ -9,10 +9,17 @@ return {
             name='testevent2',
             enabled=true,
             pattern='#*#say my class#*#'
-        }
+        },
     },
     condition_events={
-
+        {
+            name='testevent1',
+            enabled=false,
+        },
+        {
+            name='testevent2',
+            enabled=false,
+        }
     },
     characters={
         Character1={
@@ -20,10 +27,11 @@ return {
                 testevent1=1,
                 testevent2=1,
             },
-            condition_events={},
+            condition_events={
+            },
         },
     },
     settings={
-
+        frequency=1000,
     }
 }
