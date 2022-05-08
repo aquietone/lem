@@ -427,6 +427,38 @@ local function manage_conditions()
     end
 end
 
+local function cmd_handler(...)
+    local args = {...}
+    if #args < 1 then
+        print('show help')
+        return
+    end
+    local command = args[1]
+    if command == 'help' then
+        print('show help')
+    elseif command == 'event' then
+        if #args < 2 then return end
+        local event_name = args[2]
+        for _,event in ipairs(text_events) do
+            if event.name == event_name then
+                print('found event '..event.name)
+            end
+        end
+    elseif command == 'cond' then
+        if #args < 2 then return end
+        local event_name = args[2]
+        for _,event in ipairs(condition_events) do
+            if event.name == event_name then
+                print('found event '..event.name)
+            end
+        end
+    elseif command == 'show' then
+        open_lem_ui = true
+    elseif command == 'hide' then
+        open_lem_ui = false
+    end
+end
+
 -- persistence may save loaded/registrred/func values so reset them at startup
 for _,event in ipairs(text_events) do
     event.registered = false
@@ -438,6 +470,8 @@ for _,event in ipairs(condition_events) do
 end
 
 mq.imgui.init('LUA Event Manager', lem_ui)
+
+mq.bind('/lem', cmd_handler)
 
 while not terminate do
     manage_events()
