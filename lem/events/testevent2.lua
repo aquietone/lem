@@ -1,7 +1,10 @@
 local mq = require('mq')
 
-local function testevent2()
-    print(mq.TLO.Me.Class())
+local counter = 0
+
+local function event_handler()
+    counter = counter + 1
+    print(tostring(counter)..': '..mq.TLO.Me.Class())
 end
 
-return testevent2
+return event_handler
