@@ -1,10 +1,10 @@
 --[[
-lua event manager v0.1.0 -- aquietone
+lua event manager -- aquietone
 ]]
 local mq = require 'mq'
 require 'ImGui'
 local persistence = require('lem.persistence')
-local version = '0.1.0'
+local version = '0.2.0'
 
 -- application state
 local state = {
