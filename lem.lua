@@ -303,6 +303,7 @@ local function draw_events_table(event_type)
         local events = get_event_list(event_type)
         local events_changed = false
         if table_size(events) ~= #sorted_items then
+            sorted_items = {}
             for _,event in pairs(events) do
                 table.insert(sorted_items, event)
             end
