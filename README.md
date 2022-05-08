@@ -14,6 +14,9 @@ Rather than events with giant, difficult to read macro if statements, proper lua
 
 Rather than reacts with a YAML file that frequently gets corrupted or breaks from indentation mistakes, more complex conditions and actions can be implemented.
 
+Event definitions are global and stored in a shared `lem/settings.lua` file. Editing events from multiple characters can overwrite changes if you aren't reloading before making edits on a character.  
+Event enabled/disabled state is stored per character in a characters own `lem/characters/{name}.lua` file. Hopefully this allows to more safely enable or disable events across characters.
+
 # Installation
 
 Download the contents to your MQ Lua folder.
