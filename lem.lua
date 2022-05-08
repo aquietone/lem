@@ -84,6 +84,7 @@ local function save_event(event_type)
         local new_event = {name=add_event_name, enabled=add_event_enabled}
         if event_type == event_types.text then
             new_event.pattern = add_event_pattern
+            mq.unevent(new_event.name)
         end
         write_file(event_filename(event_type, add_event_name), add_event_code)
         if editor_action == actions.add then
@@ -191,7 +192,7 @@ local function draw_event_control_buttons(event_type)
         end
         ImGui.SameLine()
         if ImGui.Button('Remove Event') then
-            if event.enabled then
+            if event_type == event_types.text and event.enabled then
                 mq.unevent(event.name)
             end
             table.remove(events, selected_event_idx)
@@ -365,11 +366,19 @@ end
 
 local function manage_events()
     for _,event in ipairs(text_events) do
-        if event.enabled and not event.registered then
-            print('Registering event: \ay'..event.name..'\ax')
-            event.func = require('lem.events.'..event.name)
-            mq.event(event.name, event.pattern, event.func)
-            event.registered = true
+        if event.enabled and not event.registered and not event.failed then
+            local success, result = pcall(require, 'lem.events.'..event.name)
+            if not success then
+                result = nil
+                event.failed = true
+                print('Event registration failed: \ay'..event.name..'\ax')
+            else
+                print('Registering event: \ay'..event.name..'\ax')
+                event.func = result
+                mq.event(event.name, event.pattern, event.func)
+                event.registered = true
+            end
+            --event.func = require('lem.events.'..event.name)
         elseif not event.enabled and event.registered then
             print('Deregistering event: \ay'..event.name..'\ax')
             mq.unevent(event.name)
@@ -382,9 +391,17 @@ end
 local function manage_conditions()
     for _,event in ipairs(condition_events) do
         if event.enabled then
-            if not event.loaded then
-                event.funcs = require('lem.conditions.'..event.name)
-                event.loaded = true
+            if not event.loaded and not event.failed then
+                local success, result = pcall(require, 'lem.conditions.'..event.name)
+                if not success then
+                    result = nil
+                    event.failed = true
+                    print('Event registration failed: \ay'..event.name..'\ax')
+                else
+                    event.funcs = result
+                    event.loaded = true
+                end
+                --event.funcs = require('lem.conditions.'..event.name)
             end
             if event.funcs.condfunc() then
                 event.funcs.actionfunc()
