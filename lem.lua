@@ -148,7 +148,7 @@ local function save_event()
         end
         write_file(event_filename(state.ui.editor.event_type, add_event.name), add_event.code)
         if state.ui.editor.action == actions.add then
-            table.insert(events, new_event)
+            events[add_event.name] = new_event
         else
             unload_event_package(state.ui.editor.event_type, add_event.name)
             events[state.ui.editor.event_idx] = new_event
@@ -222,16 +222,16 @@ end
 local function draw_event_control_buttons(event_type)
     local events = get_event_list(event_type)
     if ImGui.Button('Add Event...') then
-        state.ui.main.event_idx = 0
-        set_editor_state(true, actions.add, event_type, 0)
+        state.ui.main.event_idx = nil
+        set_editor_state(true, actions.add, event_type, nil)
         reset_add_event_inputs(event_type)
     end
-    if state.ui.main.event_idx > 0 then
+    if state.ui.main.event_idx then
         local event = events[state.ui.main.event_idx]
         ImGui.SameLine()
         if ImGui.Button('View Event') then
             set_editor_state(true, actions.view, event_type, state.ui.main.event_idx)
-            state.ui.main.event_idx = 0
+            state.ui.main.event_idx = nil
             if not event.code then
                 event.code = read_file(event_filename(event_type, event.name))
             end
@@ -239,7 +239,7 @@ local function draw_event_control_buttons(event_type)
         ImGui.SameLine()
         if ImGui.Button('Edit Event') then
             set_editor_state(true, actions.edit, event_type, state.ui.main.event_idx)
-            state.ui.main.event_idx = 0
+            state.ui.main.event_idx = nil
             if not event.code then
                 event.code = read_file(event_filename(event_type, event.name))
             end
@@ -247,54 +247,49 @@ local function draw_event_control_buttons(event_type)
         end
         ImGui.SameLine()
         if ImGui.Button('Remove Event') then
-            table.remove(events, state.ui.main.event_idx)
+            events[event.name] = nil
             if event_type == event_types.text and char_settings[event_type][event.name] then
                 mq.unevent(event.name)
             end
             unload_event_package(event_type, event.name)
-            state.ui.main.event_idx = 0
+            state.ui.main.event_idx = nil
             os.execute(('del %s'):format(event_filename(event_type, event.name):gsub('/', '\\')))
             save_settings()
-            set_editor_state(false, nil, nil, 0)
+            set_editor_state(false, nil, nil, nil)
         end
     end
 end
 
 local function draw_events_table(event_type)
     if ImGui.BeginTable('EventTable', 1, table_flags, 0, 0, 0.0) then
-        ImGui.TableSetupColumn('Event Name',     0,   -1.0, 1)
+        ImGui.TableSetupColumn('Event Name',     0,   -1.0, 0)
         ImGui.TableSetupScrollFreeze(0, 1) -- Make row always visible
         ImGui.TableHeadersRow()
 
         local events = get_event_list(event_type)
-        local clipper = ImGuiListClipper.new()
-        clipper:Begin(#events)
-        while clipper:Step() do
-            for row_n = clipper.DisplayStart, clipper.DisplayEnd - 1, 1 do
-                local event = events[row_n + 1]
-                ImGui.TableNextRow()
-                ImGui.TableNextColumn()
-                if char_settings[event_type][event.name] then
-                    ImGui.PushStyleColor(ImGuiCol.Text, 0, 1, 0, 1)
-                else
-                    ImGui.PushStyleColor(ImGuiCol.Text, 1, 0, 0, 1)
-                end
-                if ImGui.Selectable(event.name, state.ui.main.event_idx == row_n + 1, ImGuiSelectableFlags.SpanAllColumns) then
-                    if state.ui.main.event_idx ~= row_n + 1 then
-                        state.ui.main.event_idx = row_n + 1
-                    end
-                end
-                ImGui.PopStyleColor()
-                if ImGui.IsItemHovered() and ImGui.IsMouseDoubleClicked(0) then
-                    set_editor_state(true, actions.view, event_type, row_n + 1)
-                    state.ui.main.event_idx = 0
-                    if not event.code then
-                        event.code = read_file(event_filename(event_type, event.name))
-                    end
-                end
-                ImGui.TableNextRow()
-                ImGui.TableNextColumn()
+        for event_name, event in pairs(events) do
+            ImGui.TableNextRow()
+            ImGui.TableNextColumn()
+            if char_settings[event_type][event_name] then
+                ImGui.PushStyleColor(ImGuiCol.Text, 0, 1, 0, 1)
+            else
+                ImGui.PushStyleColor(ImGuiCol.Text, 1, 0, 0, 1)
             end
+            if ImGui.Selectable(event_name, state.ui.main.event_idx == event_name, ImGuiSelectableFlags.SpanAllColumns) then
+                if state.ui.main.event_idx ~= event_name then
+                    state.ui.main.event_idx = event_name
+                end
+            end
+            ImGui.PopStyleColor()
+            if ImGui.IsItemHovered() and ImGui.IsMouseDoubleClicked(0) then
+                set_editor_state(true, actions.view, event_type, event_name)
+                state.ui.main.event_idx = nil
+                if not event.code then
+                    event.code = read_file(event_filename(event_type, event_name))
+                end
+            end
+            ImGui.TableNextRow()
+            ImGui.TableNextColumn()
         end
         ImGui.EndTable()
     end
@@ -461,37 +456,41 @@ local lem_ui = function()
 end
 
 local function manage_events()
-    for _,event in ipairs(text_events) do
-        if char_settings[event_types.text][event.name] and not event.registered and not event.failed then
-            local success, result = pcall(require, 'lem.events.'..event.name)
-            if not success then
-                result = nil
-                event.failed = true
-                print('Event registration failed: \ay'..event.name..'\ax')
-            else
-                print('Registering event: \ay'..event.name..'\ax')
-                event.func = result
-                mq.event(event.name, event.pattern, event.func)
-                event.registered = true
+    for event_name, enabled in pairs(char_settings[event_types.text]) do
+        local event = text_events[event_name]
+        if event then
+            if enabled and not event.registered and not event.failed then
+                local success, result = pcall(require, 'lem.events.'..event_name)
+                if not success then
+                    result = nil
+                    event.failed = true
+                    print('Event registration failed: \ay'..event_name..'\ax')
+                else
+                    print('Registering event: \ay'..event_name..'\ax')
+                    event.func = result
+                    mq.event(event_name, event.pattern, event.func)
+                    event.registered = true
+                end
+            elseif not enabled and event.registered then
+                print('Deregistering event: \ay'..event_name..'\ax')
+                mq.unevent(event_name)
+                event.registered = false
+                event.func = nil
             end
-        elseif not char_settings[event_types.text][event.name] and event.registered then
-            print('Deregistering event: \ay'..event.name..'\ax')
-            mq.unevent(event.name)
-            event.registered = false
-            event.func = nil
         end
     end
 end
 
 local function manage_conditions()
-    for _,event in ipairs(condition_events) do
-        if char_settings[event_types.cond][event.name] then
+    for event_name, enabled in pairs(char_settings[event_types.cond]) do
+        local event = condition_events[event_name]
+        if enabled and event then
             if not event.loaded and not event.failed then
-                local success, result = pcall(require, 'lem.conditions.'..event.name)
+                local success, result = pcall(require, 'lem.conditions.'..event_name)
                 if not success then
                     result = nil
                     event.failed = true
-                    print('Event registration failed: \ay'..event.name..'\ax')
+                    print('Event registration failed: \ay'..event_name..'\ax')
                 else
                     event.funcs = result
                     event.loaded = true
@@ -539,19 +538,17 @@ local function cmd_handler(...)
     elseif command == 'event' then
         if #args < 2 then return end
         local event_name = args[2]
-        for _,event in ipairs(text_events) do
-            if event.name == event_name then
-                toggle_event(event, event_types.text)
-            end
+        local event = text_events[event_name]
+        if event then
+            toggle_event(event, event_types.text)
         end
     elseif command == 'cond' then
         if #args < 2 then return end
         local event_name = args[2]
-        for _,event in ipairs(condition_events) do
-            if event.name == event_name then
-                toggle_event(event, event_types.cond)
-                print(('Condition event \ay%s\ax enabled: %s'):format(event.name, char_settings[event_types.cond][event.name]))
-            end
+        local event = condition_events[event_name]
+        if event then
+            toggle_event(event, event_types.cond)
+            print(('Condition event \ay%s\ax enabled: %s'):format(event.name, char_settings[event_types.cond][event.name]))
         end
     elseif command == 'show' then
         state.ui.main.open_ui = true
