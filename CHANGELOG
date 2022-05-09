@@ -1,3 +1,6 @@
+0.2.1
+- Fix event viewer when event code includes formatted strings
+- Add a couple more realistic sample events
 0.2.0
 - Change events to be indexed by name instead of number index
 0.1.0
