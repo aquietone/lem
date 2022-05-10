@@ -488,6 +488,16 @@ local function draw_categories_control_buttons()
     if state.ui.main.category_idx then
         ImGui.SameLine()
         if ImGui.Button('Remove Category') then
+            for _,event in pairs(text_events) do
+                if event.category == categories[state.ui.main.category_idx] then
+                    event.category = nil
+                end
+            end
+            for _,event in pairs(condition_events) do
+                if event.category == categories[state.ui.main.category_idx] then
+                    event.category = nil
+                end
+            end
             table.remove(categories, state.ui.main.category_idx)
             state.ui.main.category_idx = 0
             save_settings()
