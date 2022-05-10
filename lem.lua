@@ -15,21 +15,22 @@ local state = {
             open_ui = true,
             draw_ui = true,
             menu_idx = 0,
-            event_idx = 0,
+            event_idx = nil,
+            category_idx = 0,
             menu_width = 120,
         },
         editor = {
             open_ui = false,
             draw_ui = false,
             action = nil,
-            event_idx = 0,
+            event_idx = nil,
             event_type = nil,
         }
     }
 }
 
-local table_flags = bit32.bor(ImGuiTableFlags.Hideable, ImGuiTableFlags.Sortable, ImGuiTableFlags.RowBg, ImGuiTableFlags.ScrollY, ImGuiTableFlags.BordersOuter)
-local actions = {add=1,edit=2,view=3}
+local table_flags = bit32.bor(ImGuiTableFlags.Hideable, ImGuiTableFlags.RowBg, ImGuiTableFlags.ScrollY, ImGuiTableFlags.BordersOuter)
+local actions = {add=1,edit=2,view=3,add_category=4}
 local event_types = {text='events',cond='conditions'}
 local base_dir = mq.luaDir .. '/lem'
 local menu_default_width = 120
@@ -57,6 +58,7 @@ return {condfunc=condition, actionfunc=action}"
 local settings = require('lem.settings')
 local text_events = settings.text_events
 local condition_events = settings.condition_events
+local categories = settings.categories
 
 local char_settings = nil
 
@@ -112,10 +114,10 @@ local function unload_event_package(event_type, event_name)
     package.loaded[event_packagename(event_type, event_name)] = nil
 end
 
-local add_event = {name='', enabled=false, pattern='', code=''}
+local add_event = {name='', category='', enabled=false, pattern='', code=''}
 
 local function reset_add_event_inputs(event_type)
-    add_event = {name='', enabled=false, pattern=''}
+    add_event = {name='', category='', enabled=false, pattern=''}
     if event_type == event_types.text then
         add_event.code = text_code_template
     elseif event_type == event_types.cond then
@@ -126,6 +128,7 @@ end
 local function set_add_event_inputs(event)
     add_event = {
         name=event.name,
+        category=event.category,
         enabled=char_settings[state.ui.editor.event_type][event.name],
         pattern=event.pattern,
         code=event.code
@@ -159,6 +162,9 @@ local function did_event_config_change(original_event, new_event)
     if original_event.pattern and original_event.pattern ~= new_event.pattern then
         return true
     end
+    if original_event.category ~= new_event.category then
+        return true
+    end
     return false
 end
 
@@ -176,7 +182,7 @@ local function save_event()
             toggle_event(original_event, event_type)
         end
     else
-        local new_event = {name=add_event.name}
+        local new_event = {name=add_event.name,category=add_event.category}
         if event_type == event_types.text then
             new_event.pattern = add_event.pattern
         end
@@ -207,6 +213,15 @@ local function draw_event_editor()
             save_event()
         end
         add_event.name,_ = ImGui.InputText('Event Name', add_event.name)
+        if ImGui.BeginCombo('Category', add_event.category or '') then
+            for _,j in pairs(categories) do
+                if ImGui.Selectable(j, j == add_event.category) then
+                    add_event.category = j
+                end
+            end
+            ImGui.EndCombo()
+        end
+        --
         add_event.enabled,_ = ImGui.Checkbox('Event Enabled', add_event.enabled, add_event.enabled)
         if state.ui.editor.event_type == event_types.text then
             add_event.pattern,_ = ImGui.InputText('Event Pattern', add_event.pattern)
@@ -241,6 +256,10 @@ local function draw_event_viewer()
         else
             ImGui.TextColored(1, 0, 0, 1, event.name .. ' (Disabled)')
         end
+        ImGui.TextColored(1, 1, 0, 1, 'Category: ')
+        ImGui.SameLine()
+        ImGui.SetCursorPosX(100)
+        ImGui.Text(event.category or '')
         if state.ui.editor.event_type == event_types.text then
             ImGui.TextColored(1, 1, 0, 1, 'Pattern: ')
             ImGui.SameLine()
@@ -269,87 +288,54 @@ local function draw_event_control_buttons(event_type)
         set_editor_state(true, actions.add, event_type, nil)
         reset_add_event_inputs(event_type)
     end
-    if state.ui.main.event_idx then
-        local event = events[state.ui.main.event_idx]
-        ImGui.SameLine()
-        if ImGui.Button('View Event') then
-            set_editor_state(true, actions.view, event_type, state.ui.main.event_idx)
-            if not event.code then
-                event.code = read_file(event_filename(event_type, event.name))
-            end
-        end
-        ImGui.SameLine()
-        if ImGui.Button('Edit Event') then
-            set_editor_state(true, actions.edit, event_type, state.ui.main.event_idx)
-            if not event.code then
-                event.code = read_file(event_filename(event_type, event.name))
-            end
-            set_add_event_inputs(event)
-        end
-        ImGui.SameLine()
-        if ImGui.Button('Remove Event') then
-            events[event.name] = nil
-            if event_type == event_types.text and char_settings[event_type][event.name] then
-                mq.unevent(event.name)
-            end
-            char_settings[event_type][event.name] = nil
-            unload_event_package(event_type, event.name)
-            state.ui.main.event_idx = nil
-            os.execute(('del %s'):format(event_filename(event_type, event.name):gsub('/', '\\')))
-            save_settings()
-            save_character_settings()
-            set_editor_state(false, nil, nil, nil)
+    local buttons_active = true
+    if not state.ui.main.event_idx then
+        ImGui.PushStyleColor(ImGuiCol.Button, .3, 0, 0,1)
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, .3, 0, 0,1)
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, .3, 0, 0,1)
+        buttons_active = false
+    end
+    local event = events[state.ui.main.event_idx]
+    ImGui.SameLine()
+    if ImGui.Button('View Event') and state.ui.main.event_idx then
+        set_editor_state(true, actions.view, event_type, state.ui.main.event_idx)
+        if not event.code then
+            event.code = read_file(event_filename(event_type, event.name))
         end
     end
-end
-
-local sorted_items = {}
-local current_sort_specs = nil
-local function CompareWithSortSpecs(a, b)
-    for n = 1, current_sort_specs.SpecsCount, 1 do
-        local sort_spec = current_sort_specs:Specs(n)
-        local delta = 0
-
-        if a.name < b.name then
-            delta = -1
-        elseif b.name < a.name then
-            delta = 1
-        else
-            delta = 0
+    ImGui.SameLine()
+    if ImGui.Button('Edit Event') and state.ui.main.event_idx then
+        set_editor_state(true, actions.edit, event_type, state.ui.main.event_idx)
+        if not event.code then
+            event.code = read_file(event_filename(event_type, event.name))
         end
-
-        if delta ~= 0 then
-            if sort_spec.SortDirection == ImGuiSortDirection.Ascending then
-                return delta < 0
-            end
-            return delta > 0
-        end
+        set_add_event_inputs(event)
     end
-
-    -- Always return a way to differentiate items.
-    return a.name < b.name
-end
-
-local function table_size(t)
-    local count = 0
-    for _,_ in pairs(t) do
-        count = count + 1
-    end
-    return count
-end
-
-local function draw_event_table_context_menu(event, event_type)
-    if ImGui.BeginPopupContextItem() then
-        local menu_label = 'Enable'
-        if char_settings[event_type][event.name] then menu_label = 'Disable' end
-        if ImGui.MenuItem(menu_label) then
-            toggle_event(event, event_type)
+    ImGui.SameLine()
+    if ImGui.Button('Remove Event') and state.ui.main.event_idx then
+        events[event.name] = nil
+        if event_type == event_types.text and char_settings[event_type][event.name] then
+            mq.unevent(event.name)
         end
-        ImGui.EndPopup()
+        char_settings[event_type][event.name] = nil
+        unload_event_package(event_type, event.name)
+        state.ui.main.event_idx = nil
+        os.execute(('del %s'):format(event_filename(event_type, event.name):gsub('/', '\\')))
+        save_settings()
+        save_character_settings()
+        set_editor_state(false, nil, nil, nil)
+    end
+    if not buttons_active then
+        ImGui.PopStyleColor(3)
     end
 end
 
 local function draw_event_table_row(event, event_type)
+    local enabled = ImGui.Checkbox('##'..event.name, char_settings[event_type][event.name])
+    if enabled ~= char_settings[event_type][event.name] then
+        toggle_event(event, event_type)
+    end
+    ImGui.TableNextColumn()
     local row_label = event.name
     if char_settings[event_type][event.name] and not event.failed then
         ImGui.PushStyleColor(ImGuiCol.Text, 0, 1, 0, 1)
@@ -364,51 +350,66 @@ local function draw_event_table_row(event, event_type)
             state.ui.main.event_idx = event.name
         end
     end
-    ImGui.PopStyleColor()
     if ImGui.IsItemHovered() and ImGui.IsMouseDoubleClicked(0) then
         set_editor_state(true, actions.view, event_type, event.name)
         if not event.code then
             event.code = read_file(event_filename(event_type, event.name))
         end
     end
-    draw_event_table_context_menu(event, event_type)
+    ImGui.PopStyleColor()
 end
 
+local table_filter = ''
+local filtered_events = {}
+
 local function draw_events_table(event_type)
-    if ImGui.BeginTable('EventTable', 1, table_flags, 0, 0, 0.0) then
-        ImGui.TableSetupColumn('Event Name',     ImGuiTableColumnFlags.DefaultSort,   -1.0, 0)
+    local events = get_event_list(event_type)
+    local new_filter,_ = ImGui.InputTextWithHint('##tablefilter', 'Filter...', table_filter, 0)
+    if new_filter ~= table_filter then
+        table_filter = new_filter
+        filtered_events = {}
+        for event_name,event in pairs(events) do
+            if event_name:find(table_filter) then
+                filtered_events[event_name] = event
+            end
+        end
+    end
+    if ImGui.BeginTable('EventTable', 2, table_flags, 0, 0, 0.0) then
+        local column_label = 'Event Name'
+        ImGui.TableSetupColumn('On/Off', ImGuiTableColumnFlags.NoSort, 1, 0)
+        ImGui.TableSetupColumn(column_label,     ImGuiTableColumnFlags.DefaultSort,   3, 1)
         ImGui.TableSetupScrollFreeze(0, 1) -- Make row always visible
         ImGui.TableHeadersRow()
 
-        local events = get_event_list(event_type)
-        local events_changed = false
-        if table_size(events) ~= #sorted_items then
-            sorted_items = {}
-            for _,event in pairs(events) do
-                table.insert(sorted_items, event)
-            end
-            events_changed = true
-        end
-        local sort_specs = ImGui.TableGetSortSpecs()
-        if sort_specs then
-            if sort_specs.SpecsDirty or events_changed then
-                if #sorted_items > 1 then
-                    current_sort_specs = sort_specs
-                    table.sort(sorted_items, CompareWithSortSpecs)
-                    current_sort_specs = nil
-                end
-                sort_specs.SpecsDirty = false
-            end
-        end
-
-        local clipper = ImGuiListClipper.new()
-        clipper:Begin(#sorted_items)
-        while clipper:Step() do
-            for row_n = clipper.DisplayStart, clipper.DisplayEnd - 1, 1 do
-                local event = events[sorted_items[row_n + 1].name]
+        if table_filter ~= '' then
+            for _,event in pairs(filtered_events) do
                 ImGui.TableNextRow()
                 ImGui.TableNextColumn()
                 draw_event_table_row(event, event_type)
+            end
+        else
+            for _,category in ipairs(categories) do
+                ImGui.TableNextRow()
+                ImGui.TableNextColumn()
+                local open = ImGui.TreeNodeEx(category, ImGuiTreeNodeFlags.SpanFullWidth)
+                ImGui.TableNextColumn()
+                if open then
+                    for _,event in pairs(events) do
+                        if event.category == category then
+                            ImGui.TableNextRow()
+                            ImGui.TableNextColumn()
+                            draw_event_table_row(event, event_type)
+                        end
+                    end
+                    ImGui.TreePop()
+                end
+            end
+            for _,event in pairs(events) do
+                if not event.category or event.category == '' then
+                    ImGui.TableNextRow()
+                    ImGui.TableNextColumn()
+                    draw_event_table_row(event, event_type)
+                end
             end
         end
         ImGui.EndTable()
@@ -441,6 +442,75 @@ local function draw_reload_section()
     ImGui.Text('Reload currently just restarts the script.')
 end
 
+local add_category = {name=''}
+
+local function save_category()
+    if add_category.name:len() > 0 then
+        table.insert(settings.categories, add_category.name)
+        save_settings()
+        state.ui.editor.open_ui = false
+    end
+end
+
+local function draw_category_editor()
+    state.ui.editor.open_ui, state.ui.editor.draw_ui = ImGui.Begin('Add Category###lemeditor', state.ui.editor.open_ui)
+    if state.ui.editor.draw_ui then
+        if ImGui.Button('Save') then
+            save_category()
+        end
+        add_category.name,_ = ImGui.InputText('Category Name', add_category.name)
+    end
+    ImGui.End()
+end
+
+local function draw_categories_control_buttons()
+    if ImGui.Button('Add Category...') then
+        state.ui.editor.open_ui = true
+        state.ui.editor.action = actions.add_catogory
+    end
+    if state.ui.main.category_idx then
+        ImGui.SameLine()
+        if ImGui.Button('Remove Category') then
+            table.remove(categories, state.ui.main.category_idx)
+            state.ui.main.category_idx = 0
+            save_settings()
+        end
+    end
+end
+
+local function draw_categories_table_row(idx, category)
+    if ImGui.Selectable(category, state.ui.main.category_idx == idx, ImGuiSelectableFlags.SpanAllColumns) then
+        if state.ui.main.category_idx ~= idx then
+            state.ui.main.category_idx = idx
+        end
+    end
+end
+
+local function draw_categories_table()
+    if ImGui.BeginTable('CategoryTable', 1, table_flags, 0, 0, 0.0) then
+        ImGui.TableSetupColumn('Category',     ImGuiTableColumnFlags.NoSort,   -1, 1)
+        ImGui.TableSetupScrollFreeze(0, 1) -- Make row always visible
+        ImGui.TableHeadersRow()
+
+        local clipper = ImGuiListClipper.new()
+        clipper:Begin(#categories)
+        while clipper:Step() do
+            for row_n = clipper.DisplayStart, clipper.DisplayEnd - 1, 1 do
+                local category = categories[row_n + 1]
+                ImGui.TableNextRow()
+                ImGui.TableNextColumn()
+                draw_categories_table_row(row_n + 1, category)
+            end
+        end
+        ImGui.EndTable()
+    end
+end
+
+local function draw_categories_section()
+    draw_categories_control_buttons()
+    draw_categories_table()
+end
+
 local sections = {
     {
         name='Text Events', 
@@ -451,6 +521,10 @@ local sections = {
         name='Condition Events',
         handler=draw_events_section,
         arg=event_types.cond,
+    },
+    {
+        name='Categories',
+        handler=draw_categories_section,
     },
     --{
     --    name='Characters',
@@ -573,6 +647,8 @@ local lem_ui = function()
             draw_event_editor()
         elseif state.ui.editor.action == actions.view then
             draw_event_viewer()
+        elseif state.ui.editor.action == actions.add_catogory then
+            draw_category_editor()
         end
     end
 

@@ -1,8 +1,13 @@
 0.3.0
 - Display message when event code fails to load
-- Add right click menu to enable/disable in events table
+- Checkbox for enable/disable now displayed in events table
 - Only save character specific settings when enabling/disabling an event, instead of all settings
 - Save event checks for what changed before deciding whether to save full settings
+- Added Categories to group events
+- Categories can be created in the Categories section and then assigned when adding/editing events
+- Added filtering to events list
+- Events list now organized using category based tree nodes
+- Removed table sorting in favor of the filter and collapsible categories
 0.2.1
 - Fix event viewer when event code includes formatted strings
 - Add a couple more realistic sample events
