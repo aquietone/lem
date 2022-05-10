@@ -4,7 +4,7 @@
 
 A script to manage event handlers for text based events (like mq2events) and condition based events (like mq2react).
 
-![](./images/sample.png)
+![](./images/eventfired.png)
 
 # Overview
 
@@ -25,7 +25,29 @@ Download the contents to your MQ Lua folder.
 
 Start the script with: `/lua run lem`
 
+## Defining Event Categories
+
+![](./images/categories.png)
+
+Several example categories are pre-defined, and more can be added or removed from the `Categories` section.
+
+## Managing Events
+
+![](./images/textevents.png)
+
+The `Text Events` and `Condition Events` sections provide controls for adding, editing and deleting events.
+
+The event list can be filtered by name to help find the event you are looking for.
+
+![](./images/eventfilter.png)
+
+Full details of an event can be viewed by double clicking the row in the events table or clicking the `View Event` button.
+
+![](./images/eventviewer.png)
+
 ## Adding Text Events
+
+![](./images/eventeditor.png)
 
 1. Select `Text Events` and click `Add Event...`.
 2. Enter a name for the new event.
