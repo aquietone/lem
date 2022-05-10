@@ -4,7 +4,7 @@ lua event manager -- aquietone
 local mq = require 'mq'
 require 'ImGui'
 local persistence = require('lem.persistence')
-local version = '0.2.1'
+local version = '0.3.0'
 
 -- application state
 local state = {
@@ -74,6 +74,9 @@ end
 
 local function save_settings()
     persistence.store(('%s/settings.lua'):format(base_dir), settings)
+end
+
+local function save_character_settings()
     persistence.store(('%s/characters/%s.lua'):format(base_dir, mq.TLO.Me.CleanName():lower()), char_settings)
 end
 
@@ -137,28 +140,59 @@ local function get_event_list(event_type)
     end
 end
 
-local function save_event()
-    local events = get_event_list(state.ui.editor.event_type)
-    if add_event.code:len() > 0 and add_event.name:len() > 0 then
-        if state.ui.editor.event_type == event_types.text and add_event.pattern:len() == 0 then
-            return
-        end
-        local new_event = {name=add_event.name}
-        if state.ui.editor.event_type == event_types.text then
-            new_event.pattern = add_event.pattern
-            mq.unevent(new_event.name)
-        end
-        write_file(event_filename(state.ui.editor.event_type, add_event.name), add_event.code)
-        if state.ui.editor.action == actions.add then
-            events[add_event.name] = new_event
-        else
-            unload_event_package(state.ui.editor.event_type, add_event.name)
-            events[state.ui.editor.event_idx] = new_event
-        end
-        char_settings[state.ui.editor.event_type][add_event.name] = add_event.enabled
-        save_settings()
-        state.ui.editor.open_ui = false
+local function toggle_event(event, event_type)
+    char_settings[event_type][event.name] = not char_settings[event_type][event.name]
+    if not char_settings[event_type][event.name] then
+        unload_event_package(event_type, event.name)
+        event.loaded = false
+        event.func = nil
+        event.funcs = nil
+        event.failed = nil
     end
+    save_character_settings()
+end
+
+local function did_event_config_change(original_event, new_event)
+    if original_event.code ~= new_event.code then
+        return true
+    end
+    if original_event.pattern and original_event.pattern ~= new_event.pattern then
+        return true
+    end
+    return false
+end
+
+local function save_event()
+    local event_type = state.ui.editor.event_type
+    if add_event.code:len() == 0 or add_event.name:len() == 0 then return end
+    if event_type == event_types.text and add_event.pattern:len() == 0 then return end
+
+    local events = get_event_list(event_type)
+    local original_event = events[add_event.name]
+    if original_event and not did_event_config_change(original_event, add_event) then
+        -- code and pattern did not change
+        if add_event.enabled ~= char_settings[event_type][add_event.name] then
+            -- just enabling or disabling the event
+            toggle_event(original_event, event_type)
+        end
+    else
+        local new_event = {name=add_event.name}
+        if event_type == event_types.text then
+            new_event.pattern = add_event.pattern
+        end
+        if state.ui.editor.action == actions.edit then
+            -- replacing event, disable then unload it first before it is saved
+            char_settings[event_type][add_event.name] = nil
+            if event_type == event_types.text then mq.unevent(add_event.name) end
+            unload_event_package(event_type, add_event.name)
+        end
+        write_file(event_filename(event_type, add_event.name), add_event.code)
+        events[add_event.name] = new_event
+        save_settings()
+        char_settings[event_type][add_event.name] = add_event.enabled
+        save_character_settings()
+    end
+    state.ui.editor.open_ui = false
 end
 
 local function draw_event_editor()
@@ -195,6 +229,9 @@ local function draw_event_viewer()
         if ImGui.Button('Edit Event') then
             state.ui.editor.action = actions.edit
             set_add_event_inputs(event)
+        end
+        if event.failed then
+            ImGui.TextColored(1, 0, 0, 1, 'ERROR: Event failed to load!')
         end
         ImGui.TextColored(1, 1, 0, 1, 'Name: ')
         ImGui.SameLine()
@@ -255,10 +292,12 @@ local function draw_event_control_buttons(event_type)
             if event_type == event_types.text and char_settings[event_type][event.name] then
                 mq.unevent(event.name)
             end
+            char_settings[event_type][event.name] = nil
             unload_event_package(event_type, event.name)
             state.ui.main.event_idx = nil
             os.execute(('del %s'):format(event_filename(event_type, event.name):gsub('/', '\\')))
             save_settings()
+            save_character_settings()
             set_editor_state(false, nil, nil, nil)
         end
     end
@@ -299,6 +338,42 @@ local function table_size(t)
     return count
 end
 
+local function draw_event_table_context_menu(event, event_type)
+    if ImGui.BeginPopupContextItem() then
+        local menu_label = 'Enable'
+        if char_settings[event_type][event.name] then menu_label = 'Disable' end
+        if ImGui.MenuItem(menu_label) then
+            toggle_event(event, event_type)
+        end
+        ImGui.EndPopup()
+    end
+end
+
+local function draw_event_table_row(event, event_type)
+    local row_label = event.name
+    if char_settings[event_type][event.name] and not event.failed then
+        ImGui.PushStyleColor(ImGuiCol.Text, 0, 1, 0, 1)
+    else
+        ImGui.PushStyleColor(ImGuiCol.Text, 1, 0, 0, 1)
+        if event.failed then
+            row_label = row_label .. ' (Failed to load)'
+        end
+    end
+    if ImGui.Selectable(row_label, state.ui.main.event_idx == event.name, ImGuiSelectableFlags.SpanAllColumns) then
+        if state.ui.main.event_idx ~= event.name then
+            state.ui.main.event_idx = event.name
+        end
+    end
+    ImGui.PopStyleColor()
+    if ImGui.IsItemHovered() and ImGui.IsMouseDoubleClicked(0) then
+        set_editor_state(true, actions.view, event_type, event.name)
+        if not event.code then
+            event.code = read_file(event_filename(event_type, event.name))
+        end
+    end
+    draw_event_table_context_menu(event, event_type)
+end
+
 local function draw_events_table(event_type)
     if ImGui.BeginTable('EventTable', 1, table_flags, 0, 0, 0.0) then
         ImGui.TableSetupColumn('Event Name',     ImGuiTableColumnFlags.DefaultSort,   -1.0, 0)
@@ -333,23 +408,7 @@ local function draw_events_table(event_type)
                 local event = events[sorted_items[row_n + 1].name]
                 ImGui.TableNextRow()
                 ImGui.TableNextColumn()
-                if char_settings[event_type][event.name] then
-                    ImGui.PushStyleColor(ImGuiCol.Text, 0, 1, 0, 1)
-                else
-                    ImGui.PushStyleColor(ImGuiCol.Text, 1, 0, 0, 1)
-                end
-                if ImGui.Selectable(event.name, state.ui.main.event_idx == event.name, ImGuiSelectableFlags.SpanAllColumns) then
-                    if state.ui.main.event_idx ~= event.name then
-                        state.ui.main.event_idx = event.name
-                    end
-                end
-                ImGui.PopStyleColor()
-                if ImGui.IsItemHovered() and ImGui.IsMouseDoubleClicked(0) then
-                    set_editor_state(true, actions.view, event_type, event.name)
-                    if not event.code then
-                        event.code = read_file(event_filename(event_type, event.name))
-                    end
-                end
+                draw_event_table_row(event, event_type)
             end
         end
         ImGui.EndTable()
@@ -561,23 +620,11 @@ local function manage_conditions()
                     event.loaded = true
                 end
             end
-            if event.funcs.condfunc() then
+            if event.loaded and event.funcs.condfunc() then
                 event.funcs.actionfunc()
             end
         end
     end
-end
-
-local function toggle_event(event, event_type)
-    char_settings[event_type][event.name] = not char_settings[event_type][event.name]
-    if not char_settings[event_type][event.name] then
-        unload_event_package(event_type, event.name)
-        event.loaded = false
-        event.func = nil
-        event.funcs = nil
-        event.failed = nil
-    end
-    save_settings()
 end
 
 local function print_help()
