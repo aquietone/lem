@@ -55,24 +55,7 @@ end\
 \
 return {condfunc=condition, actionfunc=action}"
 
-local settings = require('lem.settings')
-local text_events = settings.text_events
-local condition_events = settings.condition_events
-local categories = settings.categories
-
-local char_settings = nil
-
-local function init_char_settings()
-    local my_name = mq.TLO.Me.CleanName():lower()
-    local ok, module = pcall(require, 'lem.characters.'..my_name)
-    if not ok then
-        char_settings = {events={}, conditions={}}
-        persistence.store(('%s/characters/%s.lua'):format(base_dir, my_name), char_settings)
-        char_settings = require('lem.characters.'..my_name)
-    else
-        char_settings = module
-    end
-end
+local settings, text_events, condition_events, categories, char_settings
 
 local function save_settings()
     persistence.store(('%s/settings.lua'):format(base_dir), settings)
@@ -80,6 +63,40 @@ end
 
 local function save_character_settings()
     persistence.store(('%s/characters/%s.lua'):format(base_dir, mq.TLO.Me.CleanName():lower()), char_settings)
+end
+
+local function init_settings()
+    local ok, module = pcall(require, 'lem.settings')
+    if not ok then
+        settings = {
+            text_events = {},
+            condition_events = {},
+            categories = {},
+            settings = {
+                frequency = 250,
+            },
+        }
+        save_settings()
+    else
+        settings = module
+    end
+    text_events = settings.text_events or {}
+    condition_events = settings.condition_events or {}
+    categories = settings.categories or {}
+    if not settings.settings or not settings.settings.frequency then
+        settings['settings'] = {frequency = 250}
+    end
+end
+
+local function init_char_settings()
+    local my_name = mq.TLO.Me.CleanName():lower()
+    local ok, module = pcall(require, 'lem.characters.'..my_name)
+    if not ok then
+        char_settings = {events={}, conditions={}}
+        save_character_settings()
+    else
+        char_settings = module
+    end
 end
 
 local function file_exists(file)
@@ -748,6 +765,7 @@ local function cmd_handler(...)
     end
 end
 
+init_settings()
 init_char_settings()
 mq.imgui.init('Lua Event Manager', lem_ui)
 mq.bind('/lem', cmd_handler)
