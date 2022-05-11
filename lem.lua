@@ -4,7 +4,7 @@ lua event manager -- aquietone
 local mq = require 'mq'
 require 'ImGui'
 local persistence = require('lem.persistence')
-local version = '0.3.1'
+local version = '0.4.0'
 
 -- application state
 local state = {
@@ -318,6 +318,9 @@ local function serialize_table(val, name, skipnewlines, depth)
 end
 
 local function export_event(event, event_type)
+    if not event.code then
+        event.code = read_file(event_filename(event_type, event.name))
+    end
     local exported_event = {
         name = event.name,
         pattern = event.pattern,
@@ -429,6 +432,15 @@ local function draw_event_control_buttons(event_type)
     end
 end
 
+local function draw_event_table_context_menu(event, event_type)
+    if ImGui.BeginPopupContextItem() then
+        if ImGui.MenuItem('Export') then
+            export_event(event, event_type)
+        end
+        ImGui.EndPopup()
+    end
+end
+
 local function draw_event_table_row(event, event_type)
     local enabled = ImGui.Checkbox('##'..event.name, char_settings[event_type][event.name])
     if enabled ~= char_settings[event_type][event.name] then
@@ -456,6 +468,7 @@ local function draw_event_table_row(event, event_type)
         end
     end
     ImGui.PopStyleColor()
+    draw_event_table_context_menu(event, event_type)
 end
 
 local table_filter = ''
