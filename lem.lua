@@ -147,6 +147,12 @@ local function write_file(file, contents)
     io.close(f)
 end
 
+local function delete_file(filename)
+    local command = ('del %s'):format(filename):gsub('/', '\\')
+    local pipe = io.popen(command)
+    if pipe then pipe:close() end
+end
+
 local function event_filename(event_type, event_name)
     return ('%s/%s/%s.lua'):format(base_dir, event_type, event_name)
 end
@@ -416,7 +422,7 @@ local function draw_event_control_buttons(event_type)
         char_settings[event_type][event.name] = nil
         unload_event_package(event_type, event.name)
         state.ui.main.event_idx = nil
-        os.execute(('del %s'):format(event_filename(event_type, event.name):gsub('/', '\\')))
+        delete_file(event_filename(event_type, event.name))
         save_settings()
         save_character_settings()
         set_editor_state(false, nil, nil, nil)
