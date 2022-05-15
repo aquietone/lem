@@ -4,7 +4,7 @@ lua event manager -- aquietone
 local mq = require 'mq'
 require 'ImGui'
 local persistence = require('lem.persistence')
-local version = '0.4.0'
+local version = '0.4.1'
 
 -- application state
 local state = {
