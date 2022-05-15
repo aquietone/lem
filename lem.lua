@@ -893,13 +893,15 @@ local function print_help()
     print(('\a-t[\ax\ayLua Event Manager v%s\ax\a-t]\ax'):format(version))
     print('\axAvailable Commands:')
     print('\t- \ay/lem help\ax -- Display this help output.')
-    print('\t- \ay/lem event <event_name>\ax -- Toggle the named text event on/off.')
-    print('\t- \ay/lem cond <event_name>\ax -- Toggle the named condition event on/off.')
+    print('\t- \ay/lem event <event_name> [on|1|true|off|0|false]\ax -- Toggle the named text event on/off.')
+    print('\t- \ay/lem cond <event_name> [on|1|true|off|0|false]\ax -- Toggle the named condition event on/off.')
     print('\t- \ay/lem show\ax -- Show the UI.')
     print('\t- \ay/lem hide\ax -- Hide the UI.')
     print('\t- \ay/lem reload\ax -- Reload settings (Currently just restarts the script).')
 end
 
+local ON_VALUES = {['on']=1,['1']=1,['true']=1}
+local OFF_VALUES = {['off']=1,['0']=1,['false']=1}
 local function cmd_handler(...)
     local args = {...}
     if #args < 1 then
@@ -911,16 +913,30 @@ local function cmd_handler(...)
         print_help()
     elseif command == 'event' then
         if #args < 2 then return end
+        local enable
+        if #args > 2 then enable = args[3] end
         local event_name = args[2]
         local event = text_events[event_name]
         if event then
+            if enable and ON_VALUES[enable] and char_settings.events[event_name] then
+                return -- event is already on, do nothing
+            elseif enable and OFF_VALUES[enable] and not char_settings.events[event_name] then
+                return -- event is already off, do nothing
+            end
             toggle_event(event, event_types.text)
         end
     elseif command == 'cond' then
         if #args < 2 then return end
         local event_name = args[2]
+        local enable
+        if #args > 2 then enable = args[3] end
         local event = condition_events[event_name]
         if event then
+            if enable and ON_VALUES[enable] and char_settings.conditions[event_name] then
+                return -- event is already on, do nothing
+            elseif enable and OFF_VALUES[enable] and not char_settings.conditions[event_name] then
+                return -- event is already off, do nothing
+            end
             toggle_event(event, event_types.cond)
             print(('Condition event \ay%s\ax enabled: %s'):format(event.name, char_settings[event_types.cond][event.name]))
         end
