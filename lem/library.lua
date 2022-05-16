@@ -10,6 +10,33 @@ local mq = require('mq')
 
 local library = {}
 
+---Wait the specified amount of time for navigation to complete.
+---@param wait_time number @Optional, the time to wait to reach the location
+library.wait_for_nav = function(wait_time)
+    if wait_time and wait_time > 0 then
+        mq.delay(50)
+        mq.delay(wait_time, function() return not mq.TLO.Navigation.Active() end)
+    end
+end
+
+---Navigate to the specified spawn ID and optionally wait for arrival.
+---@param x number @The spawn ID to nav to
+---@param wait_time number @Optional, the time to wait to reach the location
+library.nav_to_id = function(id, wait_time)
+    mq.cmdf('/nav id %d', id)
+    library.wait_for_nav(wait_time)
+end
+
+---Navigate to the specified x,y,z coordinates and optionally wait for arrival.
+---@param x number @The X location value
+---@param y number @The Y location value
+---@param z number @The Z location value
+---@param wait_time number @Optional, the time to wait to reach the location
+library.nav_to_locxyz = function(x, y, z, wait_time)
+    mq.cmdf('/nav locxyz %d %d %d', x, y, z)
+    library.wait_for_nav(wait_time)
+end
+
 ---Target the spawn with the given ID
 ---@param id string @The ID of the spawn to target
 library.get_target_by_id = function(id)
@@ -57,7 +84,7 @@ library.hostile_xtargets = function()
     return false
 end
 
-library.spell_types = {spell=1,item=1,aa=1}
+library.spell_types = {spell=1,disc=1,item=1,aa=1}
 ---Check whether a spell can be used (mana cost, in control of character, have reagents, spell ready)
 ---@param spell userdata @The spell userdata object.
 ---@param spell_type number @The type of spell (spell_types.spell, item or aa).
@@ -136,7 +163,7 @@ end
 ---@return boolean @Returns true if the spell was cast, otherwise false.
 library.cast = function(spell_name, requires_target)
     local spell = mq.TLO.Spell(spell_name)
-    if not spell_name or not library.can_use_spell(spell, 'spell') or not library.should_use_spell(spell, false) then return false end
+    if not spell_name or not library.can_use_spell(spell, library.spell_types.spell) or not library.should_use_spell(spell, false) then return false end
     mq.cmdf('/cast "%s"', spell_name)
     mq.delay(10)
     if not mq.TLO.Me.Casting() then mq.cmdf('/cast %s', spell_name) end
@@ -168,7 +195,7 @@ end
 library.item_ready = function(item)
     if item() and item.Clicky.Spell() and item.Timer() == '0' then
         local spell = item.Clicky.Spell
-        return library.can_use_spell(spell, 'item') and library.should_use_spell(spell, false)
+        return library.can_use_spell(spell, library.spell_types.item) and library.should_use_spell(spell, false)
     else
         return false
     end
@@ -192,7 +219,7 @@ end
 library.aa_ready = function(name)
     if mq.TLO.Me.AltAbilityReady(name)() then
         local spell = mq.TLO.Me.AltAbility(name).Spell
-        return library.can_use_spell(spell, 'aa') and library.should_use_spell(spell, false)
+        return library.can_use_spell(spell, library.spell_types.aa) and library.should_use_spell(spell, false)
     else
         return false
     end
@@ -202,7 +229,7 @@ end
 ---@param name string @The name of the AA to use.
 ---@return boolean @Returns true if the ability was fired, otherwise false.
 library.use_aa = function(name)
-    if name and library.aa_ready(name) then
+    if library.aa_ready(name) then
         mq.cmdf('/alt activate %d', mq.TLO.Me.AltAbility(name).ID())
         mq.delay(250+mq.TLO.Me.AltAbility(name).Spell.CastTime()) -- wait for cast time + some buffer so we don't skip over stuff
         mq.delay(250, function() return not mq.TLO.Me.AltAbilityReady(name)() end)
@@ -215,7 +242,9 @@ end
 ---@param name string @The name of the disc to check.
 ---@return boolean @Returns true if the disc is an active disc, otherwise false.
 library.is_disc = function(name)
-    if mq.TLO.Spell(name).IsSkill() and (tonumber(mq.TLO.Spell(name).Duration()) and tonumber(mq.TLO.Spell(name).Duration()) > 0) and mq.TLO.Spell(name).TargetType() == 'Self' and not mq.TLO.Spell(name).StacksWithDiscs() then
+    local spell = mq.TLO.Spell(name)
+    local duration = tonumber(spell.Duration())
+    if spell.IsSkill() and (duration and duration > 0) and spell.TargetType() == 'Self' and not spell.StacksWithDiscs() then
         return true
     else
         return false
@@ -228,7 +257,7 @@ end
 library.disc_ready = function(name)
     if mq.TLO.Me.CombatAbility(name)() and mq.TLO.Me.CombatAbilityTimer(name)() == '0' and mq.TLO.Me.CombatAbilityReady(name)() then
         local spell = mq.TLO.Spell(name)
-        return library.can_use_spell(spell, 'disc') and library.should_use_spell(spell, true)
+        return library.can_use_spell(spell, library.spell_types.disc) and library.should_use_spell(spell, true)
     else
         return false
     end
@@ -238,7 +267,7 @@ end
 ---@param name string @The name of the disc to use.
 ---@param overwrite boolean @The name of a disc which should be stopped in order to run this disc.
 library.use_disc = function(name, overwrite)
-    if name and library.disc_ready(name) then
+    if library.disc_ready(name) then
         if not library.is_disc(name) or not mq.TLO.Me.ActiveDisc.ID() then
             if name:find('Composite') then
                 mq.cmdf('/disc %s', mq.TLO.Me.CombatAbility(name).ID())
