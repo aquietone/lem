@@ -26,6 +26,7 @@ local state = {
             action = nil,
             event_idx = nil,
             event_type = nil,
+            template = '',
         },
     },
     inputs = {
@@ -41,6 +42,7 @@ local event_types = {text='events',cond='conditions'}
 local base_dir = mq.luaDir .. '/lem'
 local menu_default_width = 120
 
+local templates = {'event_runout', 'react_bane'}
 local text_code_template = "local mq = require('mq')\n\
 local function event_handler()\n    \nend\n\
 return event_handler"
@@ -151,6 +153,10 @@ local function delete_file(filename)
     local command = ('del %s'):format(filename):gsub('/', '\\')
     local pipe = io.popen(command)
     if pipe then pipe:close() end
+end
+
+local function template_filename(name)
+    return ('%s/templates/%s.lua'):format(base_dir, name)
 end
 
 local function event_filename(event_type, event_name)
@@ -281,6 +287,30 @@ local function draw_event_editor()
         if state.ui.editor.event_type == event_types.text then
             add_event.pattern,_ = ImGui.InputText('Event Pattern', add_event.pattern)
         end
+        if ImGui.BeginCombo('Code Templates', state.ui.editor.template or '') then
+            for _,template in ipairs(templates) do
+                if ImGui.Selectable(template, state.ui.editor.template == template) then
+                    state.ui.editor.template = template
+                end
+            end
+            ImGui.EndCombo()
+        end
+        local buttons_active = true
+        if state.ui.editor.template == '' then
+            ImGui.PushStyleColor(ImGuiCol.Button, .3, 0, 0,1)
+            ImGui.PushStyleColor(ImGuiCol.ButtonActive, .3, 0, 0,1)
+            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, .3, 0, 0,1)
+            buttons_active = false
+        end
+        if ImGui.Button('Load Template') and state.ui.editor.template ~= '' then
+            add_event.code = read_file(template_filename(state.ui.editor.template))
+        end
+        if not buttons_active then
+            ImGui.PopStyleColor(3)
+        end
+        ImGui.SameLine()
+        ImGui.TextColored(1, 0, 0, 1, 'This will OVERWRITE the existing event code')
+        ImGui.NewLine()
         ImGui.Text('Event Code')
         local x, y = ImGui.GetContentRegionAvail()
         add_event.code,_ = ImGui.InputTextMultiline('###EventCode', add_event.code, x-100, y-20)
