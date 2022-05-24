@@ -1,3 +1,5 @@
+0.5.0
+- Dynamic load options
 0.4.1
 - specify on/off on event enable commands
 - add some library functions for people to use in events

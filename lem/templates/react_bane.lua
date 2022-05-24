@@ -10,6 +10,10 @@ local banes = {
     SHM={name='Virulent Paralysis',type='aa'},
 }
 
+local function on_load()
+    -- Initialize anything here when the event loads
+end
+
 local function condition()
     return mq.TLO.Zone.ShortName() == required_zone and mq.TLO.SpawnCount(('%s npc'):format(bane_mob_name))() > 0
 end
@@ -58,4 +62,4 @@ local function action()
     mq.cmd('/boxr unpause')
 end
 
-return {condfunc=condition, actionfunc=action}
+return {onload=on_load, condfunc=condition, actionfunc=action}

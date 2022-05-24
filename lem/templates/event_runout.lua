@@ -29,6 +29,10 @@ local function run_away()
     mq.cmd('/timed 150 /twist on')
 end
 
+local function on_load()
+    -- Initialize anything here when the event loads
+end
+
 local function event_handler(line, target)
     if not mq.TLO.Zone.ShortName() == required_zone then return end
 
@@ -42,4 +46,4 @@ local function event_handler(line, target)
     end
 end
 
-return event_handler
+return {onload=on_load, eventfunc=event_handler}
