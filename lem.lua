@@ -410,8 +410,8 @@ end
 
 local function draw_event_table_row(event, event_type)
     -- per character enabled flag currently in use instead of dynamic load options
-    local enabled = ImGui.Checkbox('##'..event.name, char_settings[event_type][event.name])
-    if enabled ~= char_settings[event_type][event.name] then
+    local enabled = ImGui.Checkbox('##'..event.name, char_settings[event_type][event.name] or false)
+    if enabled ~= (char_settings[event_type][event.name] or false) then
         toggle_event(event, event_type)
     end
     ImGui.TableNextColumn()
