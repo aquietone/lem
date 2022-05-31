@@ -46,18 +46,9 @@ events.changed = function(original_event, new_event)
     return false
 end
 
-events.toggle = function(event, event_type)
-    char_settings[event_type][event.name] = not char_settings[event_type][event.name]
-    if not char_settings[event_type][event.name] then
-        if event_type == events.types.text then print('Deregistering event: \ay'..event.name..'\ax') end
-        events.unload_package(event.name, event_type)
-        event.loaded = false
-        event.func = nil
-        event.failed = nil
-    end
-end
-
-events.should_load = function(event)
+events.should_load = function(event, event_type, char_settings)
+    -- per character enabled flag currently in use instead of dynamic load options
+    if char_settings[event_type][event.name] then return true else return false end
     local load = event.load
     if load then
         if load.always then return true end
@@ -134,9 +125,9 @@ events.evaluate_condition = function(event)
     end
 end
 
-events.manage = function(event_list, event_type)
+events.manage = function(event_list, event_type, char_settings)
     for _, event in pairs(event_list) do
-        local load_event = events.should_load(event)
+        local load_event = events.should_load(event, event_type, char_settings)
         if not event.loaded and not event.failed and load_event then
             events.load(event, event_type)
         elseif event.loaded and not load_event then
@@ -212,7 +203,7 @@ events.import = function(import_string, categories)
                 break
             end
         end
-        if not category_found then event.category = '' end
+        if not category_found then imported_event.category = '' end
     end
     return imported_event
 end

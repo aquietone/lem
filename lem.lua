@@ -33,7 +33,7 @@ local state = {
     },
     inputs = {
         import = '',
-        add_event = {name='', category='', pattern='', code='',load={always=false,zone='',class='',characters='',},},
+        add_event = {name='', category='', enabled=false, pattern='', code='',load={always=false,zone='',class='',characters='',},},
         add_category = {name=''},
     },
 }
@@ -88,7 +88,7 @@ local function init_char_settings()
 end
 
 local function reset_add_event_inputs(event_type)
-    state.inputs.add_event = {name='', category='', pattern='', load={always=false,zone='',class='',characters='',},}
+    state.inputs.add_event = {name='', category='', enabled=false, pattern='', load={always=false,zone='',class='',characters='',},}
     if event_type == events.types.text then
         state.inputs.add_event.code = templates.text_base
     elseif event_type == events.types.cond then
@@ -100,6 +100,7 @@ local function set_add_event_inputs(event)
     state.inputs.add_event = {
         name=event.name,
         category=event.category,
+        enabled=char_settings[state.ui.editor.event_type][event.name],
         pattern=event.pattern,
         code=event.code,
         load=event.load,
@@ -129,6 +130,18 @@ local function get_event_list(event_type)
     end
 end
 
+local function toggle_event(event, event_type)
+    char_settings[event_type][event.name] = not char_settings[event_type][event.name]
+    if not char_settings[event_type][event.name] then
+        if event_type == events.types.text then print('Deregistering event: \ay'..event.name..'\ax') end
+        events.unload_package(event.name, event_type)
+        event.loaded = false
+        event.func = nil
+        event.failed = nil
+    end
+    save_character_settings()
+end
+
 local function save_event()
     local event_type = state.ui.editor.event_type
     local add_event = state.inputs.add_event
@@ -137,7 +150,15 @@ local function save_event()
 
     local event_list = get_event_list(event_type)
     local original_event = event_list[add_event.name]
-    if original_event and events.changed(original_event, add_event) then
+    -- per character enabled flag currently in use instead of dynamic load options
+    if original_event and not events.changed(original_event, add_event) then
+        -- code and pattern did not change
+        if add_event.enabled ~= char_settings[event_type][add_event.name] then
+            -- just enabling or disabling the event
+            toggle_event(original_event, event_type)
+        end
+    else
+    --if original_event and events.changed(original_event, add_event) then
         local new_event = {name=add_event.name,category=add_event.category,}
         new_event.load = {always=add_event.load.always, characters=add_event.load.characters, class=add_event.load.class, zone=add_event.load.zone,}
         if event_type == events.types.text then
@@ -151,7 +172,6 @@ local function save_event()
         end
         persistence.write_file(events.filename(add_event.name, event_type), add_event.code)
         event_list[add_event.name] = new_event
-        print(event_list[add_event.name].load.zone)
         save_settings()
     end
     state.ui.editor.open_ui = false
@@ -167,6 +187,8 @@ local function draw_event_editor_general(add_event)
         end
         ImGui.EndCombo()
     end
+    -- per character enabled flag currently in use instead of dynamic load options
+    add_event.enabled,_ = ImGui.Checkbox('Event Enabled', add_event.enabled, add_event.enabled)
     if state.ui.editor.event_type == events.types.text then
         add_event.pattern,_ = ImGui.InputText('Event Pattern', add_event.pattern)
     end
@@ -264,7 +286,9 @@ local function draw_event_viewer_general(event)
     ImGui.TextColored(1, 1, 0, 1, 'Name: ')
     ImGui.SameLine()
     ImGui.SetCursorPosX(100)
-    if event.loaded then
+    -- per character enabled flag currently in use instead of dynamic load options
+    if char_settings[state.ui.editor.event_type][event.name] then
+    --if event.loaded then
         ImGui.TextColored(0, 1, 0, 1, event.name)
     else
         ImGui.TextColored(1, 0, 0, 1, event.name .. ' (Disabled)')
@@ -287,6 +311,7 @@ local function draw_event_viewer_general(event)
 end
 
 local function draw_event_viewer_load(event)
+    ImGui.TextColored(1, 1, 0, 1, '>>> UNDER CONSTRUCTION <<<')
     ImGui.TextColored(1, 1, 0, 1, 'Always: ')
     ImGui.SameLine()
     ImGui.SetCursorPosX(125)
@@ -384,8 +409,16 @@ local function draw_event_table_context_menu(event, event_type)
 end
 
 local function draw_event_table_row(event, event_type)
+    -- per character enabled flag currently in use instead of dynamic load options
+    local enabled = ImGui.Checkbox('##'..event.name, char_settings[event_type][event.name])
+    if enabled ~= char_settings[event_type][event.name] then
+        toggle_event(event, event_type)
+    end
+    ImGui.TableNextColumn()
     local row_label = event.name
-    if event.loaded then
+    -- per character enabled flag currently in use instead of dynamic load options
+    if char_settings[event_type][event.name] and not event.failed then
+    --if event.loaded then
         ImGui.PushStyleColor(ImGuiCol.Text, 0, 1, 0, 1)
     else
         ImGui.PushStyleColor(ImGuiCol.Text, 1, 0, 0, 1)
@@ -708,6 +741,8 @@ local function print_help()
     print(('\a-t[\ax\ayLua Event Manager v%s\ax\a-t]\ax'):format(version))
     print('\axAvailable Commands:')
     print('\t- \ay/lem help\ax -- Display this help output.')
+    print('\t- \ay/lem event <event_name> [on|1|true|off|0|false]\ax -- Toggle the named text event on/off.')
+    print('\t- \ay/lem cond <event_name> [on|1|true|off|0|false]\ax -- Toggle the named condition event on/off.')
     print('\t- \ay/lem show\ax -- Show the UI.')
     print('\t- \ay/lem hide\ax -- Hide the UI.')
     print('\t- \ay/lem reload\ax -- Reload settings (Currently just restarts the script).')
@@ -724,6 +759,35 @@ local function cmd_handler(...)
     local command = args[1]
     if command == 'help' then
         print_help()
+    elseif command == 'event' then
+        if #args < 2 then return end
+        local enable
+        if #args > 2 then enable = args[3] end
+        local event_name = args[2]
+        local event = text_events[event_name]
+        if event then
+            if enable and ON_VALUES[enable] and char_settings.events[event_name] then
+                return -- event is already on, do nothing
+            elseif enable and OFF_VALUES[enable] and not char_settings.events[event_name] then
+                return -- event is already off, do nothing
+            end
+            toggle_event(event, events.types.text)
+        end
+    elseif command == 'cond' then
+        if #args < 2 then return end
+        local event_name = args[2]
+        local enable
+        if #args > 2 then enable = args[3] end
+        local event = condition_events[event_name]
+        if event then
+            if enable and ON_VALUES[enable] and char_settings.conditions[event_name] then
+                return -- event is already on, do nothing
+            elseif enable and OFF_VALUES[enable] and not char_settings.conditions[event_name] then
+                return -- event is already off, do nothing
+            end
+            toggle_event(event, events.types.cond)
+            print(('Condition event \ay%s\ax enabled: %s'):format(event.name, char_settings[events.types.cond][event.name]))
+        end
     elseif command == 'show' then
         state.ui.main.open_ui = true
     elseif command == 'hide' then
@@ -754,8 +818,8 @@ mq.imgui.init('Lua Event Manager', lem_ui)
 mq.bind('/lem', cmd_handler)
 
 while not state.terminate do
-    events.manage(text_events, events.types.text)
-    events.manage(condition_events, events.types.cond)
+    events.manage(text_events, events.types.text, char_settings)
+    events.manage(condition_events, events.types.cond, char_settings)
     mq.doevents()
     mq.delay(settings.settings.frequency)
 end
