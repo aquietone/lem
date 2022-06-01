@@ -173,6 +173,8 @@ local function save_event()
         persistence.write_file(events.filename(add_event.name, event_type), add_event.code)
         event_list[add_event.name] = new_event
         save_settings()
+        char_settings[event_type][add_event.name] = add_event.enabled
+        save_character_settings()
     end
     state.ui.editor.open_ui = false
 end
@@ -222,6 +224,7 @@ local function draw_event_editor_general(add_event)
 end
 
 local function draw_event_editor_load(add_event)
+    ImGui.TextColored(1, 1, 0, 1, '>>> UNDER CONSTRUCTION - NOT IN USE <<<')
     add_event.load.always = ImGui.Checkbox('Always', add_event.load.always, add_event.load.always)
     add_event.load.zone,_ = ImGui.InputText('Zone Shortname', add_event.load.zone)
     add_event.load.class,_ = ImGui.InputText('Classes', add_event.load.class)
@@ -311,7 +314,7 @@ local function draw_event_viewer_general(event)
 end
 
 local function draw_event_viewer_load(event)
-    ImGui.TextColored(1, 1, 0, 1, '>>> UNDER CONSTRUCTION <<<')
+    ImGui.TextColored(1, 1, 0, 1, '>>> UNDER CONSTRUCTION - NOT IN USE <<<')
     ImGui.TextColored(1, 1, 0, 1, 'Always: ')
     ImGui.SameLine()
     ImGui.SetCursorPosX(125)
