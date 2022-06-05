@@ -74,6 +74,24 @@ local add_event_enabled = false
 local add_event_pattern = ''
 local add_event_code = ''
 
+local function reset_add_event_inputs(event_type)
+    add_event_name = ''
+    add_event_enabled = false
+    add_event_pattern = ''
+    if event_type == event_types.text then
+        add_event_code = text_code_template
+    elseif event_type == event_types.cond then
+        add_event_code = condition_code_template
+    end
+end
+
+local function set_add_event_inputs(event)
+    add_event_name = event.name
+    add_event_enabled = event.enabled
+    add_event_pattern = event.pattern
+    add_event_code = event.code
+end
+
 local function save_event()
     local events = text_events
     if editor_event_type == event_types.cond then
@@ -130,8 +148,13 @@ local function draw_event_viewer()
     end
     local event = events[editor_event_idx]
     if draw_editor_ui and event then
+        if ImGui.Button('Edit Event') then
+            editor_action = actions.edit
+            set_add_event_inputs(event)
+        end
         ImGui.TextColored(1, 1, 0, 1, 'Name: ')
         ImGui.SameLine()
+        ImGui.SetCursorPosX(100)
         if event.enabled then
             ImGui.TextColored(0, 1, 0, 1, event.name)
         else
@@ -140,30 +163,13 @@ local function draw_event_viewer()
         if editor_event_type == event_types.text then
             ImGui.TextColored(1, 1, 0, 1, 'Pattern: ')
             ImGui.SameLine()
-            ImGui.Text(event.pattern)
+            ImGui.SetCursorPosX(100)
+            ImGui.TextColored(1, 0, 1, 1, event.pattern)
         end
         ImGui.TextColored(1, 1, 0, 1, 'Code:')
-        ImGui.Text(event.code)
+        ImGui.TextColored(0, 1, 1, 1, event.code)
     end
     ImGui.End()
-end
-
-local function reset_add_event_inputs(event_type)
-    add_event_name = ''
-    add_event_enabled = false
-    add_event_pattern = ''
-    if event_type == event_types.text then
-        add_event_code = text_code_template
-    elseif event_type == event_types.cond then
-        add_event_code = condition_code_template
-    end
-end
-
-local function set_add_event_inputs(event)
-    add_event_name = event.name
-    add_event_enabled = event.enabled
-    add_event_pattern = event.pattern
-    add_event_code = event.code
 end
 
 local function draw_event_control_buttons(event_type)
@@ -266,14 +272,6 @@ end
 local function draw_events_section(event_type)
     draw_event_control_buttons(event_type)
     draw_events_table(event_type)
-
-    if open_editor_ui then
-        if editor_action == actions.add or editor_action == actions.edit then
-            draw_event_editor(event_type)
-        elseif editor_action == actions.view then
-            draw_event_viewer(event_type)
-        end
-    end
 end
 
 local function draw_characters_section()
@@ -281,7 +279,12 @@ local function draw_characters_section()
 end
 
 local function draw_settings_section()
-
+    ImGui.PushStyleColor(ImGuiCol.Text, 1, 1, 0, 1)
+    settings.settings.frequency = ImGui.InputInt('Frequency', settings.settings.frequency)
+    ImGui.PopStyleColor()
+    if ImGui.Button('Save') then
+        persistence.store(('%s/settings.lua'):format(base_dir), settings)
+    end
 end
 
 local sections = {
@@ -364,8 +367,29 @@ local function draw_splitter(thickness, size0, min_size0)
     ImGui.SetCursorPosY(y)
 end
 
+local function push_style()
+    ImGui.PushStyleColor(ImGuiCol.WindowBg, 0, 0, 0, .9)
+    ImGui.PushStyleColor(ImGuiCol.TitleBg, .3, 0, 0, 1)
+    ImGui.PushStyleColor(ImGuiCol.TitleBgActive, .5, 0, 0, 1)
+    ImGui.PushStyleColor(ImGuiCol.FrameBg, .2, .2, .2, 1)
+    ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, .3, 0, 0, 1)
+    ImGui.PushStyleColor(ImGuiCol.FrameBgActive, .3, 0, 0, 1)
+    ImGui.PushStyleColor(ImGuiCol.Button, .5, 0, 0,1)
+    ImGui.PushStyleColor(ImGuiCol.ButtonHovered, .6, 0, 0,1)
+    ImGui.PushStyleColor(ImGuiCol.ButtonActive, .5, 0, 0,1)
+    ImGui.PushStyleColor(ImGuiCol.PopupBg, .1,.1,.1,1)
+    ImGui.PushStyleColor(ImGuiCol.TextDisabled, 1, 1, 1, 1)
+    ImGui.PushStyleColor(ImGuiCol.CheckMark, .5, 0, 0, 1)
+    ImGui.PushStyleColor(ImGuiCol.Separator, .4, 0, 0, 1)
+end
+
+local function pop_style()
+    ImGui.PopStyleColor(13)
+end
+
 -- ImGui main function for rendering the UI window
 local lem_ui = function()
+    push_style()
     open_lem_ui, draw_lem_ui = ImGui.Begin('LUA Event Manager', open_lem_ui)
     if draw_lem_ui then
         draw_splitter(8, left_panel_default_width, 75)
@@ -376,6 +400,16 @@ local lem_ui = function()
         ImGui.PopStyleVar()
     end
     ImGui.End()
+
+    if open_editor_ui then
+        if editor_action == actions.add or editor_action == actions.edit then
+            draw_event_editor()
+        elseif editor_action == actions.view then
+            draw_event_viewer()
+        end
+    end
+
+    pop_style()
     if not open_lem_ui then
         terminate = true
     end
