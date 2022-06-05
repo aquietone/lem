@@ -57,6 +57,39 @@ return {condfunc=condition, actionfunc=action}"
 
 local settings, text_events, condition_events, categories, char_settings
 
+-- character table string
+local b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+
+-- encoding
+local function enc(data)
+    return ((data:gsub('.', function(x) 
+        local r,b='',x:byte()
+        for i=8,1,-1 do r=r..(b%2^i-b%2^(i-1)>0 and '1' or '0') end
+        return r;
+    end)..'0000'):gsub('%d%d%d?%d?%d?%d?', function(x)
+        if (#x < 6) then return '' end
+        local c=0
+        for i=1,6 do c=c+(x:sub(i,i)=='1' and 2^(6-i) or 0) end
+        return b:sub(c+1,c+1)
+    end)..({ '', '==', '=' })[#data%3+1])
+end
+
+-- decoding
+local function dec(data)
+    data = string.gsub(data, '[^'..b..'=]', '')
+    return (data:gsub('.', function(x)
+        if (x == '=') then return '' end
+        local r,f='',(b:find(x)-1)
+        for i=6,1,-1 do r=r..(f%2^i-f%2^(i-1)>0 and '1' or '0') end
+        return r;
+    end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
+        if (#x ~= 8) then return '' end
+        local c=0
+        for i=1,8 do c=c+(x:sub(i,i)=='1' and 2^(8-i) or 0) end
+        return string.char(c)
+    end))
+end
+
 local function save_settings()
     persistence.store(('%s/settings.lua'):format(base_dir), settings)
 end
@@ -160,9 +193,14 @@ local function get_event_list(event_type)
     end
 end
 
+--local event_ui_ids = {}
+
 local function toggle_event(event, event_type)
     char_settings[event_type][event.name] = not char_settings[event_type][event.name]
     if not char_settings[event_type][event.name] then
+--        if event.ui_id and event.ui_id ~= '' then
+--            table.insert(event_ui_ids, event.ui_id)
+--        end
         unload_event_package(event_type, event.name)
         event.loaded = false
         event.func = nil
@@ -250,6 +288,46 @@ local function draw_event_editor()
     ImGui.End()
 end
 
+local function serialize_table(val, name, skipnewlines, depth)
+    skipnewlines = skipnewlines or false
+    depth = depth or 0
+
+    local tmp = string.rep(" ", depth)
+
+    if name then tmp = tmp .. name .. " = " end
+
+    if type(val) == "table" then
+        tmp = tmp .. "{" .. (not skipnewlines and "\n" or "")
+
+        for k, v in pairs(val) do
+            tmp =  tmp .. serialize_table(v, k, skipnewlines, depth + 1) .. "," .. (not skipnewlines and "\n" or "")
+        end
+
+        tmp = tmp .. string.rep(" ", depth) .. "}"
+    elseif type(val) == "number" then
+        tmp = tmp .. tostring(val)
+    elseif type(val) == "string" then
+        tmp = tmp .. string.format("%q", val)
+    elseif type(val) == "boolean" then
+        tmp = tmp .. (val and "true" or "false")
+    else
+        tmp = tmp .. "\"[inserializeable datatype:" .. type(val) .. "]\""
+    end
+
+    return tmp
+end
+
+local function export_event(event, event_type)
+    local exported_event = {
+        name = event.name,
+        pattern = event.pattern,
+        category = event.category,
+        code = enc(event.code),
+        type = event_type,
+    }
+    ImGui.SetClipboardText(enc('return '..serialize_table(exported_event)))
+end
+
 local function draw_event_viewer()
     if not state.ui.editor.open_ui then return end
     state.ui.editor.open_ui, state.ui.editor.draw_ui = ImGui.Begin('Event Viewer###lemeditor', state.ui.editor.open_ui)
@@ -261,6 +339,10 @@ local function draw_event_viewer()
         if ImGui.Button('Edit Event') then
             state.ui.editor.action = actions.edit
             set_add_event_inputs(event)
+        end
+        ImGui.SameLine()
+        if ImGui.Button('Export Event') then
+            export_event(event, state.ui.editor.event_type)
         end
         if event.failed then
             ImGui.TextColored(1, 0, 0, 1, 'ERROR: Event failed to load!')
@@ -538,6 +620,46 @@ local function draw_categories_section()
     draw_categories_table()
 end
 
+local import_input = ''
+
+local function import_event()
+    if not import_input or import_input == '' then return end
+    local decoded = dec(import_input)
+    if not decoded or decoded == '' then return end
+    local ok, imported_event = pcall(loadstring(decoded))
+    if not ok then
+        print('\arERROR: Failed to import event\ax')
+        return
+    end
+    local temp_code = dec(imported_event.code)
+    if not temp_code or temp_code == '' then return end
+    imported_event.code = temp_code
+    if imported_event.category and imported_event.category ~= '' then
+        local category_found = false
+        for _,category in ipairs(categories) do
+            if category == imported_event.category then
+                category_found = true
+                break
+            end
+        end
+        if not category_found then event.category = '' end
+    end
+    set_editor_state(true, actions.add, imported_event.type, nil)
+    set_add_event_inputs(imported_event)
+end
+
+local function draw_import_window()
+    if ImGui.Button('Import Event') then
+        import_event()
+        import_input = ''
+    end
+    ImGui.SameLine()
+    if ImGui.Button('Paste from clipboard') then
+        import_input = ImGui.GetClipboardText()
+    end
+    import_input = ImGui.InputTextMultiline('##importeventtext', import_input)
+end
+
 local sections = {
     {
         name='Text Events', 
@@ -564,6 +686,10 @@ local sections = {
     {
         name='Reload',
         handler=draw_reload_section,
+    },
+    {
+        name='Import',
+        handler=draw_import_window,
     }
 }
 
@@ -720,6 +846,7 @@ local function manage_conditions()
                     print('Event registration failed: \ay'..event_name..'\ax')
                 else
                     event.funcs = result
+--                    event.ui_id = result.ui_id
                     event.loaded = true
                 end
             end
@@ -791,6 +918,10 @@ mq.imgui.init('Lua Event Manager', lem_ui)
 mq.bind('/lem', cmd_handler)
 
 while not state.terminate do
+--    for idx, ui_id in ipairs(event_ui_ids) do
+--        mq.imgui.destroy(ui_id)
+--        table.remove(event_ui_ids, idx)
+--    end
     manage_events()
     manage_conditions()
     mq.doevents()
