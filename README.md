@@ -4,6 +4,8 @@
 
 A Lua script to manage event handlers.
 
+![](./images/sample.png)
+
 # Installation
 
 Download the contents to your MQ Lua folder.
