@@ -3,6 +3,7 @@ lua event manager
 ]]
 local mq = require 'mq'
 require 'ImGui'
+local persistence = require('lem.persistence')
 
 -- GUI Control variables
 local open_lem_ui = true
@@ -90,6 +91,7 @@ local function save_event(event_type)
         else
             events[selected_event_idx] = new_event
         end
+        persistence.store(('%s/settings.lua'):format(base_dir), settings)
         open_editor_ui = false
     end
 end
@@ -194,6 +196,7 @@ local function draw_event_control_buttons(event_type)
             end
             table.remove(events, selected_event_idx)
             os.execute(('del %s'):format(event_filename(event_type, event.name)))
+            persistence.store(('%s/settings.lua'):format(base_dir), settings)
         end
     end
 end
