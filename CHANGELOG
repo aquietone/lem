@@ -1,3 +1,8 @@
+0.3.0
+- Display message when event code fails to load
+- Add right click menu to enable/disable in events table
+- Only save character specific settings when enabling/disabling an event, instead of all settings
+- Save event checks for what changed before deciding whether to save full settings
 0.2.1
 - Fix event viewer when event code includes formatted strings
 - Add a couple more realistic sample events
