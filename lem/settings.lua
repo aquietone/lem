@@ -11,9 +11,6 @@ local obj1 = {
 			["name"] = "testevent2";
 		};
 	};
-	["settings"] = {
-		["frequency"] = 250;
-	};
 	["text_events"] = {
 		["testevent2"] = {
 			["name"] = "testevent2";
@@ -23,6 +20,9 @@ local obj1 = {
 			["name"] = "testevent1";
 			["pattern"] = "#*#say my name#*#";
 		};
+	};
+	["settings"] = {
+		["frequency"] = 250;
 	};
 }
 return obj1

@@ -28,7 +28,7 @@ local state = {
     }
 }
 
-local table_flags = bit32.bor(ImGuiTableFlags.Hideable, ImGuiTableFlags.RowBg, ImGuiTableFlags.ScrollY, ImGuiTableFlags.BordersOuter)
+local table_flags = bit32.bor(ImGuiTableFlags.Hideable, ImGuiTableFlags.Sortable, ImGuiTableFlags.RowBg, ImGuiTableFlags.ScrollY, ImGuiTableFlags.BordersOuter)
 local actions = {add=1,edit=2,view=3}
 local event_types = {text='events',cond='conditions'}
 local base_dir = mq.luaDir .. '/lem'
@@ -83,14 +83,16 @@ local function file_exists(file)
 end
 
 local function read_file(file)
-    local f = io.open(file, 'r')
+    local f,e = io.open(file, 'r')
+    if not f then return error(e) end
     local contents = f:read('*a')
     io.close(f)
     return contents
 end
 
 local function write_file(file, contents)
-    local f = io.open(file, 'w')
+    local f,e = io.open(file, 'w')
+    if not f then return error(e) end
     f:write(contents)
     io.close(f)
 end
@@ -222,7 +224,6 @@ end
 local function draw_event_control_buttons(event_type)
     local events = get_event_list(event_type)
     if ImGui.Button('Add Event...') then
-        state.ui.main.event_idx = nil
         set_editor_state(true, actions.add, event_type, nil)
         reset_add_event_inputs(event_type)
     end
@@ -231,7 +232,6 @@ local function draw_event_control_buttons(event_type)
         ImGui.SameLine()
         if ImGui.Button('View Event') then
             set_editor_state(true, actions.view, event_type, state.ui.main.event_idx)
-            state.ui.main.event_idx = nil
             if not event.code then
                 event.code = read_file(event_filename(event_type, event.name))
             end
@@ -239,7 +239,6 @@ local function draw_event_control_buttons(event_type)
         ImGui.SameLine()
         if ImGui.Button('Edit Event') then
             set_editor_state(true, actions.edit, event_type, state.ui.main.event_idx)
-            state.ui.main.event_idx = nil
             if not event.code then
                 event.code = read_file(event_filename(event_type, event.name))
             end
@@ -260,36 +259,92 @@ local function draw_event_control_buttons(event_type)
     end
 end
 
+local sorted_items = {}
+local current_sort_specs = nil
+local function CompareWithSortSpecs(a, b)
+    for n = 1, current_sort_specs.SpecsCount, 1 do
+        local sort_spec = current_sort_specs:Specs(n)
+        local delta = 0
+
+        if a.name < b.name then
+            delta = -1
+        elseif b.name < a.name then
+            delta = 1
+        else
+            delta = 0
+        end
+
+        if delta ~= 0 then
+            if sort_spec.SortDirection == ImGuiSortDirection.Ascending then
+                return delta < 0
+            end
+            return delta > 0
+        end
+    end
+
+    -- Always return a way to differentiate items.
+    return a.name < b.name
+end
+
+local function table_size(t)
+    local count = 0
+    for _,_ in pairs(t) do
+        count = count + 1
+    end
+    return count
+end
+
 local function draw_events_table(event_type)
     if ImGui.BeginTable('EventTable', 1, table_flags, 0, 0, 0.0) then
-        ImGui.TableSetupColumn('Event Name',     0,   -1.0, 0)
+        ImGui.TableSetupColumn('Event Name',     ImGuiTableColumnFlags.DefaultSort,   -1.0, 0)
         ImGui.TableSetupScrollFreeze(0, 1) -- Make row always visible
         ImGui.TableHeadersRow()
 
         local events = get_event_list(event_type)
-        for event_name, event in pairs(events) do
-            ImGui.TableNextRow()
-            ImGui.TableNextColumn()
-            if char_settings[event_type][event_name] then
-                ImGui.PushStyleColor(ImGuiCol.Text, 0, 1, 0, 1)
-            else
-                ImGui.PushStyleColor(ImGuiCol.Text, 1, 0, 0, 1)
+        local events_changed = false
+        if table_size(events) ~= #sorted_items then
+            for _,event in pairs(events) do
+                table.insert(sorted_items, event)
             end
-            if ImGui.Selectable(event_name, state.ui.main.event_idx == event_name, ImGuiSelectableFlags.SpanAllColumns) then
-                if state.ui.main.event_idx ~= event_name then
-                    state.ui.main.event_idx = event_name
+            events_changed = true
+        end
+        local sort_specs = ImGui.TableGetSortSpecs()
+        if sort_specs then
+            if sort_specs.SpecsDirty or events_changed then
+                if #sorted_items > 1 then
+                    current_sort_specs = sort_specs
+                    table.sort(sorted_items, CompareWithSortSpecs)
+                    current_sort_specs = nil
+                end
+                sort_specs.SpecsDirty = false
+            end
+        end
+
+        local clipper = ImGuiListClipper.new()
+        clipper:Begin(#sorted_items)
+        while clipper:Step() do
+            for row_n = clipper.DisplayStart, clipper.DisplayEnd - 1, 1 do
+                local event = sorted_items[row_n + 1]
+                ImGui.TableNextRow()
+                ImGui.TableNextColumn()
+                if char_settings[event_type][event.name] then
+                    ImGui.PushStyleColor(ImGuiCol.Text, 0, 1, 0, 1)
+                else
+                    ImGui.PushStyleColor(ImGuiCol.Text, 1, 0, 0, 1)
+                end
+                if ImGui.Selectable(event.name, state.ui.main.event_idx == event.name, ImGuiSelectableFlags.SpanAllColumns) then
+                    if state.ui.main.event_idx ~= event.name then
+                        state.ui.main.event_idx = event.name
+                    end
+                end
+                ImGui.PopStyleColor()
+                if ImGui.IsItemHovered() and ImGui.IsMouseDoubleClicked(0) then
+                    set_editor_state(true, actions.view, event_type, event.name)
+                    if not event.code then
+                        event.code = read_file(event_filename(event_type, event.name))
+                    end
                 end
             end
-            ImGui.PopStyleColor()
-            if ImGui.IsItemHovered() and ImGui.IsMouseDoubleClicked(0) then
-                set_editor_state(true, actions.view, event_type, event_name)
-                state.ui.main.event_idx = nil
-                if not event.code then
-                    event.code = read_file(event_filename(event_type, event_name))
-                end
-            end
-            ImGui.TableNextRow()
-            ImGui.TableNextColumn()
         end
         ImGui.EndTable()
     end
@@ -364,7 +419,11 @@ local function draw_menu()
                 ImGui.TableNextRow()
                 ImGui.TableNextColumn()
                 if ImGui.Selectable(section.name, state.ui.main.menu_idx == idx) then
-                    state.ui.main.menu_idx = idx
+                    if state.ui.main.menu_idx ~= idx then
+                        sorted_items = {}
+                        state.ui.main.menu_idx = idx
+                        state.ui.main.event_idx = nil
+                    end
                 end
             end
             ImGui.EndTable()
