@@ -4,7 +4,7 @@ lua event manager -- aquietone
 local mq = require 'mq'
 require 'ImGui'
 local persistence = require('lem.persistence')
-local version = '0.3.0'
+local version = '0.3.1'
 
 -- application state
 local state = {
@@ -723,8 +723,18 @@ local function manage_conditions()
                     event.loaded = true
                 end
             end
-            if event.loaded and event.funcs.condfunc() then
-                event.funcs.actionfunc()
+            if event.loaded then
+                local success, result = pcall(event.funcs.condfunc)
+                if success and result then
+                    success, result = pcall(event.funcs.actionfunc)
+                    if not success then
+                        print('\arERROR: Failed to invoke action for event: \ax\ay'..event.name..'\ax')
+                        print('\t\ar'..result..'\ax')
+                    end
+                elseif not success then
+                    print('\arERROR: Failed to invoke condition for event: \ax\ay'..event.name..'\ax')
+                    print('\t\ar'..result..'\ax')
+                end
             end
         end
     end
