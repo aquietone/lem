@@ -105,6 +105,7 @@ refCount = function (objRefCount, item)
 	end;
 end;
 
+local skip_keys = {code=1,failed=1,loaded=1,registered=1,func=1,funcs=1}
 -- Format items for the purpose of restoring
 writers = {
 	["nil"] = function (file, item)
@@ -132,12 +133,14 @@ writers = {
 				-- Single use table
 				file:write("{\n");
 				for k, v in pairs(item) do
-					writeIndent(file, level+1);
-					file:write("[");
-					write(file, k, level+1, objRefNames);
-					file:write("] = ");
-					write(file, v, level+1, objRefNames);
-					file:write(";\n");
+					if not skip_keys[k] then
+						writeIndent(file, level+1);
+						file:write("[");
+						write(file, k, level+1, objRefNames);
+						file:write("] = ");
+						write(file, v, level+1, objRefNames);
+						file:write(";\n");
+					end
 				end
 				writeIndent(file, level);
 				file:write("}");

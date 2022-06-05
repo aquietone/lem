@@ -8,12 +8,12 @@ local obj1 = {
 	};
 	["condition_events"] = {
 		[1] = {
-			["name"] = "testevent1";
 			["enabled"] = false;
+			["name"] = "testevent1";
 		};
 		[2] = {
-			["name"] = "testevent2";
 			["enabled"] = false;
+			["name"] = "testevent2";
 		};
 	};
 	["characters"] = {
