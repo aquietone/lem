@@ -24,6 +24,8 @@ local base_dir = mq.luaDir .. '/lem'
 
 local selected_menu_item = 0
 local selected_event_idx = 0
+local editor_event_idx = 0
+local editor_event_type = nil
 
 local left_panel_width = 120
 local left_panel_default_width = 120
@@ -72,41 +74,44 @@ local add_event_enabled = false
 local add_event_pattern = ''
 local add_event_code = ''
 
-local function save_event(event_type)
+local function save_event()
     local events = text_events
-    if event_type == event_types.cond then
+    if editor_event_type == event_types.cond then
         events = condition_events
     end
     if add_event_code:len() > 0 and add_event_name:len() > 0 then
-        if event_type == event_types.text and add_event_pattern:len() == 0 then
+        if editor_event_type == event_types.text and add_event_pattern:len() == 0 then
             return
         end
         local new_event = {name=add_event_name, enabled=add_event_enabled}
-        if event_type == event_types.text then
+        if editor_event_type == event_types.text then
             new_event.pattern = add_event_pattern
             mq.unevent(new_event.name)
         end
-        write_file(event_filename(event_type, add_event_name), add_event_code)
+        write_file(event_filename(editor_event_type, add_event_name), add_event_code)
         if editor_action == actions.add then
             table.insert(events, new_event)
         else
-            events[selected_event_idx] = new_event
+            package.loaded['lem.'..editor_event_type..'.'..add_event_name] = nil
+            events[editor_event_idx].func = nil
+            events[editor_event_idx].funcs = nil
+            events[editor_event_idx] = new_event
         end
         persistence.store(('%s/settings.lua'):format(base_dir), settings)
         open_editor_ui = false
     end
 end
 
-local function draw_event_editor(event_type)
+local function draw_event_editor()
     if not open_editor_ui then return end
     open_editor_ui, draw_editor_ui = ImGui.Begin('Event Editor###lemeditor', open_editor_ui)
     if draw_editor_ui then
         if ImGui.Button('Save') then
-            save_event(event_type)
+            save_event()
         end
         add_event_name,_ = ImGui.InputText('Event Name', add_event_name)
         add_event_enabled,_ = ImGui.Checkbox('Event Enabled', add_event_enabled, add_event_enabled)
-        if event_type == event_types.text then
+        if editor_event_type == event_types.text then
             add_event_pattern,_ = ImGui.InputText('Event Pattern', add_event_pattern)
         end
         ImGui.Text('Event Code')
@@ -116,14 +121,14 @@ local function draw_event_editor(event_type)
     ImGui.End()
 end
 
-local function draw_event_viewer(event_type)
+local function draw_event_viewer()
     if not open_editor_ui then return end
     open_editor_ui, draw_editor_ui = ImGui.Begin('Event Viewer###lemeditor', open_editor_ui)
     local events = text_events
-    if event_type == event_types.cond then
+    if editor_event_type == event_types.cond then
         events = condition_events
     end
-    local event = events[selected_event_idx]
+    local event = events[editor_event_idx]
     if draw_editor_ui and event then
         ImGui.TextColored(1, 1, 0, 1, 'Name: ')
         ImGui.SameLine()
@@ -132,7 +137,7 @@ local function draw_event_viewer(event_type)
         else
             ImGui.TextColored(1, 0, 0, 1, event.name .. ' (Disabled)')
         end
-        if event_type == event_types.text then
+        if editor_event_type == event_types.text then
             ImGui.TextColored(1, 1, 0, 1, 'Pattern: ')
             ImGui.SameLine()
             ImGui.Text(event.pattern)
@@ -169,6 +174,8 @@ local function draw_event_control_buttons(event_type)
     if ImGui.Button('Add Event...') then
         open_editor_ui = true
         editor_action = actions.add
+        selected_event_idx = 0
+        editor_event_type = event_type
         reset_add_event_inputs(event_type)
     end
     if selected_event_idx > 0 then
@@ -177,6 +184,9 @@ local function draw_event_control_buttons(event_type)
         if ImGui.Button('View Event') then
             open_editor_ui = true
             editor_action = actions.view
+            editor_event_idx = selected_event_idx
+            editor_event_type = event_type
+            selected_event_idx = 0
             if not event.code then
                 event.code = read_file(event_filename(event_type, event.name))
             end
@@ -185,6 +195,9 @@ local function draw_event_control_buttons(event_type)
         if ImGui.Button('Edit Event') then
             open_editor_ui = true
             editor_action = actions.edit
+            editor_event_idx = selected_event_idx
+            editor_event_type = event_type
+            selected_event_idx = 0
             if not event.code then
                 event.code = read_file(event_filename(event_type, event.name))
             end
@@ -196,8 +209,10 @@ local function draw_event_control_buttons(event_type)
                 mq.unevent(event.name)
             end
             table.remove(events, selected_event_idx)
+            selected_event_idx = 0
             os.execute(('del %s'):format(event_filename(event_type, event.name)))
             persistence.store(('%s/settings.lua'):format(base_dir), settings)
+            open_editor_ui = false
         end
     end
 end
@@ -233,7 +248,9 @@ local function draw_events_table(event_type)
                 if ImGui.IsItemHovered() and ImGui.IsMouseDoubleClicked(0) then
                     open_editor_ui = true
                     editor_action = actions.view
-                    selected_event_idx = row_n + 1
+                    selected_event_idx = 0
+                    editor_event_idx = row_n + 1
+                    editor_event_type = event_type
                     if not event.code then
                         event.code = read_file(event_filename(event_type, event.name))
                     end
