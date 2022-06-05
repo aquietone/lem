@@ -4,7 +4,7 @@ lua event manager -- aquietone
 local mq = require 'mq'
 require 'ImGui'
 local persistence = require('lem.persistence')
-local version = '0.2.0'
+local version = '0.2.1'
 
 -- application state
 local state = {
@@ -190,6 +190,8 @@ local function draw_event_viewer()
     local events = get_event_list(state.ui.editor.event_type)
     local event = events[state.ui.editor.event_idx]
     if state.ui.editor.draw_ui and event then
+        local width = ImGui.GetContentRegionAvail()
+        ImGui.PushTextWrapPos(width-15)
         if ImGui.Button('Edit Event') then
             state.ui.editor.action = actions.edit
             set_add_event_inputs(event)
@@ -209,7 +211,10 @@ local function draw_event_viewer()
             ImGui.TextColored(1, 0, 1, 1, event.pattern)
         end
         ImGui.TextColored(1, 1, 0, 1, 'Code:')
-        ImGui.TextColored(0, 1, 1, 1, event.code)
+        ImGui.PushStyleColor(ImGuiCol.Text, 0, 1, 1, 1)
+        ImGui.TextUnformatted(event.code)
+        ImGui.PopStyleColor()
+        ImGui.PopTextWrapPos()
     end
     ImGui.End()
 end
@@ -325,7 +330,7 @@ local function draw_events_table(event_type)
         clipper:Begin(#sorted_items)
         while clipper:Step() do
             for row_n = clipper.DisplayStart, clipper.DisplayEnd - 1, 1 do
-                local event = sorted_items[row_n + 1]
+                local event = events[sorted_items[row_n + 1].name]
                 ImGui.TableNextRow()
                 ImGui.TableNextColumn()
                 if char_settings[event_type][event.name] then
