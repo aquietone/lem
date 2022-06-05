@@ -14,7 +14,7 @@ local function action()\n    -- Implement the action to perform here.\nend\n\
 return {onload=on_load, condfunc=condition, actionfunc=action}"
 
 local templates = {
-    files={'event_runout', 'react_bane'},
+    files={'event_runout', 'react_bane', 'react_click_jboots'},
     text_base=text_code_template,
     condition_base=condition_code_template,
     filename = function(name)
