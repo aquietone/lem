@@ -1,3 +1,6 @@
+local mq = require('mq')
+local base_dir = mq.luaDir .. '/lem'
+
 local text_code_template = "local mq = require('mq')\n\
 local function on_load()\n    -- Perform any initial setup here when the event is loaded.\nend\n\
 local function event_handler()\n    -- Implement the handling for the event here.\nend\n\
@@ -14,6 +17,9 @@ local templates = {
     files={'event_runout', 'react_bane'},
     text_base=text_code_template,
     condition_base=condition_code_template,
+    filename = function(name)
+        return ('%s/templates/%s.lua'):format(base_dir, name)
+    end;
 }
 
 return templates

@@ -8,6 +8,10 @@ local resume_cmds = ('/timed 150 /%s mode 2; /timed 150 /mqp off; /timed 150 /tw
 
 local full_cmd = ('/multiline ; %s; %s; %s;'):format(pause_cmds, run_away_cmd, resume_cmds)
 
+local function on_load()
+    -- Initialize anything here when the event loads
+end
+
 local function event_handler(line, target)
     if not mq.TLO.Zone.ShortName() == 'vexthaltwo_mission' then return end
 
@@ -22,4 +26,4 @@ local function event_handler(line, target)
     end
 end
 
-return event_handler
+return {onload=on_load, eventfunc=event_handler}
