@@ -1,2 +1,4 @@
+0.2.0
+- Change events to be indexed by name instead of number index
 0.1.0
 - Initial check-in
