@@ -18,6 +18,7 @@ local state = {
             event_idx = nil,
             category_idx = 0,
             menu_width = 120,
+            filter = '',
         },
         editor = {
             open_ui = false,
@@ -25,8 +26,13 @@ local state = {
             action = nil,
             event_idx = nil,
             event_type = nil,
-        }
-    }
+        },
+    },
+    inputs = {
+        import = '',
+        add_event = {name='', category='', enabled=false, pattern='', code=''},
+        add_category = {name=''},
+    },
 }
 
 local table_flags = bit32.bor(ImGuiTableFlags.Hideable, ImGuiTableFlags.RowBg, ImGuiTableFlags.ScrollY, ImGuiTableFlags.BordersOuter)
@@ -35,27 +41,16 @@ local event_types = {text='events',cond='conditions'}
 local base_dir = mq.luaDir .. '/lem'
 local menu_default_width = 120
 
-local text_code_template = "local mq = require('mq')\
-\
-local function event_handler()\
-    \
-end\
-\
+local text_code_template = "local mq = require('mq')\n\
+local function event_handler()\n    \nend\n\
 return event_handler"
 
-local condition_code_template = "local mq = require('mq')\
-\
-local function condition()\
-    \
-end\
-\
-local function action()\
-    \
-end\
-\
+local condition_code_template = "local mq = require('mq')\n\
+local function condition()\n    \nend\n\
+local function action()\n    \nend\n\
 return {condfunc=condition, actionfunc=action}"
 
-local settings, text_events, condition_events, categories, char_settings
+local settings, text_events, condition_events, categories, char_settings, filtered_events
 
 -- character table string
 local b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
@@ -164,19 +159,17 @@ local function unload_event_package(event_type, event_name)
     package.loaded[event_packagename(event_type, event_name)] = nil
 end
 
-local add_event = {name='', category='', enabled=false, pattern='', code=''}
-
 local function reset_add_event_inputs(event_type)
-    add_event = {name='', category='', enabled=false, pattern=''}
+    state.inputs.add_event = {name='', category='', enabled=false, pattern=''}
     if event_type == event_types.text then
-        add_event.code = text_code_template
+        state.inputs.add_event.code = text_code_template
     elseif event_type == event_types.cond then
-        add_event.code = condition_code_template
+        state.inputs.add_event.code = condition_code_template
     end
 end
 
 local function set_add_event_inputs(event)
-    add_event = {
+    state.inputs.add_event = {
         name=event.name,
         category=event.category,
         enabled=char_settings[state.ui.editor.event_type][event.name],
@@ -204,7 +197,6 @@ local function toggle_event(event, event_type)
         unload_event_package(event_type, event.name)
         event.loaded = false
         event.func = nil
-        event.funcs = nil
         event.failed = nil
     end
     save_character_settings()
@@ -225,6 +217,7 @@ end
 
 local function save_event()
     local event_type = state.ui.editor.event_type
+    local add_event = state.inputs.add_event
     if add_event.code:len() == 0 or add_event.name:len() == 0 then return end
     if event_type == event_types.text and add_event.pattern:len() == 0 then return end
 
@@ -267,6 +260,7 @@ local function draw_event_editor()
         if ImGui.Button('Save') then
             save_event()
         end
+        local add_event = state.inputs.add_event
         add_event.name,_ = ImGui.InputText('Event Name', add_event.name)
         if ImGui.BeginCombo('Category', add_event.category or '') then
             for _,j in pairs(categories) do
@@ -471,17 +465,14 @@ local function draw_event_table_row(event, event_type)
     draw_event_table_context_menu(event, event_type)
 end
 
-local table_filter = ''
-local filtered_events = {}
-
 local function draw_events_table(event_type)
     local events = get_event_list(event_type)
-    local new_filter,_ = ImGui.InputTextWithHint('##tablefilter', 'Filter...', table_filter, 0)
-    if new_filter ~= table_filter then
-        table_filter = new_filter
+    local new_filter,_ = ImGui.InputTextWithHint('##tablefilter', 'Filter...', state.ui.main.filter, 0)
+    if new_filter ~= state.ui.main.filter then
+        state.ui.main.filter = new_filter
         filtered_events = {}
         for event_name,event in pairs(events) do
-            if event_name:find(table_filter) then
+            if event_name:find(state.ui.main.filter) then
                 filtered_events[event_name] = event
             end
         end
@@ -493,7 +484,7 @@ local function draw_events_table(event_type)
         ImGui.TableSetupScrollFreeze(0, 1) -- Make row always visible
         ImGui.TableHeadersRow()
 
-        if table_filter ~= '' then
+        if state.ui.main.filter ~= '' then
             for _,event in pairs(filtered_events) do
                 ImGui.TableNextRow()
                 ImGui.TableNextColumn()
@@ -554,11 +545,9 @@ local function draw_reload_section()
     ImGui.Text('Reload currently just restarts the script.')
 end
 
-local add_category = {name=''}
-
 local function save_category()
-    if add_category.name:len() > 0 then
-        table.insert(settings.categories, add_category.name)
+    if state.inputs.add_category.name:len() > 0 then
+        table.insert(settings.categories, state.inputs.add_category.name)
         save_settings()
         state.ui.editor.open_ui = false
     end
@@ -570,7 +559,7 @@ local function draw_category_editor()
         if ImGui.Button('Save') then
             save_category()
         end
-        add_category.name,_ = ImGui.InputText('Category Name', add_category.name)
+        state.inputs.add_category.name,_ = ImGui.InputText('Category Name', state.inputs.add_category.name)
     end
     ImGui.End()
 end
@@ -633,11 +622,9 @@ local function draw_categories_section()
     draw_categories_table()
 end
 
-local import_input = ''
-
 local function import_event()
-    if not import_input or import_input == '' then return end
-    local decoded = dec(import_input)
+    if not state.inputs.import or state.inputs.import == '' then return end
+    local decoded = dec(state.inputs.import)
     if not decoded or decoded == '' then return end
     local ok, imported_event = pcall(loadstring(decoded))
     if not ok then
@@ -664,13 +651,13 @@ end
 local function draw_import_window()
     if ImGui.Button('Import Event') then
         import_event()
-        import_input = ''
+        state.inputs.import = ''
     end
     ImGui.SameLine()
     if ImGui.Button('Paste from clipboard') then
-        import_input = ImGui.GetClipboardText()
+        state.inputs.import = ImGui.GetClipboardText()
     end
-    import_input = ImGui.InputTextMultiline('##importeventtext', import_input)
+    state.inputs.import = ImGui.InputTextMultiline('##importeventtext', state.inputs.import)
 end
 
 local sections = {
@@ -821,29 +808,64 @@ local lem_ui = function()
     pop_style()
 end
 
+local function load_event(event)
+    local success, result = pcall(require, 'lem.events.'..event.name)
+    if not success then
+        result = nil
+        event.failed = true
+        print('Event registration failed: \ay'..event.name..'\ax')
+    else
+        print('Registering event: \ay'..event.name..'\ax')
+        event.func = result
+        mq.event(event.name, event.pattern, event.func)
+        event.registered = true
+    end
+end
+
+local function unload_event(event)
+    print('Deregistering event: \ay'..event.name..'\ax')
+    mq.unevent(event.name)
+    event.registered = false
+    event.func = nil
+end
+
 local function manage_events()
     for event_name, enabled in pairs(char_settings[event_types.text]) do
         local event = text_events[event_name]
         if event then
             if enabled and not event.registered and not event.failed then
-                local success, result = pcall(require, 'lem.events.'..event_name)
-                if not success then
-                    result = nil
-                    event.failed = true
-                    print('Event registration failed: \ay'..event_name..'\ax')
-                else
-                    print('Registering event: \ay'..event_name..'\ax')
-                    event.func = result
-                    mq.event(event_name, event.pattern, event.func)
-                    event.registered = true
-                end
+                load_event(event)
             elseif not enabled and event.registered then
-                print('Deregistering event: \ay'..event_name..'\ax')
-                mq.unevent(event_name)
-                event.registered = false
-                event.func = nil
+                unload_event(event)
             end
         end
+    end
+end
+
+local function load_condition(event)
+    local success, result = pcall(require, 'lem.conditions.'..event.name)
+    if not success then
+        result = nil
+        event.failed = true
+        print('Event registration failed: \ay'..event.name..'\ax')
+    else
+        event.func = result
+--      event.ui_id = result.ui_id
+        event.loaded = true
+    end
+end
+
+local function evaluate_condition(event)
+    local success, result = pcall(event.func.condfunc)
+    if success and result then
+        success, result = pcall(event.func.actionfunc)
+        if not success then
+            print('\arERROR: Failed to invoke action for event: \ax\ay'..event.name..'\ax')
+            print('\t\ar'..result..'\ax')
+        end
+    elseif not success then
+        print('\arERROR: Failed to invoke condition for event: \ax\ay'..event.name..'\ax')
+        print('\t\ar'..result..'\ax')
     end
 end
 
@@ -852,29 +874,10 @@ local function manage_conditions()
         local event = condition_events[event_name]
         if enabled and event then
             if not event.loaded and not event.failed then
-                local success, result = pcall(require, 'lem.conditions.'..event_name)
-                if not success then
-                    result = nil
-                    event.failed = true
-                    print('Event registration failed: \ay'..event_name..'\ax')
-                else
-                    event.funcs = result
---                    event.ui_id = result.ui_id
-                    event.loaded = true
-                end
+                load_condition(event)
             end
             if event.loaded then
-                local success, result = pcall(event.funcs.condfunc)
-                if success and result then
-                    success, result = pcall(event.funcs.actionfunc)
-                    if not success then
-                        print('\arERROR: Failed to invoke action for event: \ax\ay'..event.name..'\ax')
-                        print('\t\ar'..result..'\ax')
-                    end
-                elseif not success then
-                    print('\arERROR: Failed to invoke condition for event: \ax\ay'..event.name..'\ax')
-                    print('\t\ar'..result..'\ax')
-                end
+                evaluate_condition(event)
             end
         end
     end
