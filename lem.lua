@@ -8,6 +8,7 @@ local version = '0.1.0'
 
 -- application state
 local state = {
+    terminate = false,
     ui = {
         main = {
             title = ('Lua Event Manager (v%s)###lem'):format(version),
@@ -57,8 +58,28 @@ local settings = require('lem.settings')
 local text_events = settings.text_events
 local condition_events = settings.condition_events
 
+local char_settings = nil
+
+local function init_char_settings()
+    local my_name = mq.TLO.Me.CleanName():lower()
+    local ok, module = pcall(require, 'lem.characters.'..my_name)
+    if not ok then
+        char_settings = {events={}, conditions={}}
+        persistence.store(('%s/characters/%s.lua'):format(base_dir, my_name), char_settings)
+        char_settings = require('lem.characters.'..my_name)
+    else
+        char_settings = module
+    end
+end
+
 local function save_settings()
     persistence.store(('%s/settings.lua'):format(base_dir), settings)
+    persistence.store(('%s/characters/%s.lua'):format(base_dir, mq.TLO.Me.CleanName():lower()), char_settings)
+end
+
+local function file_exists(file)
+    local f = io.open(file, "r")
+    if f ~= nil then io.close(f) return true else return false end
 end
 
 local function read_file(file)
@@ -98,7 +119,12 @@ local function reset_add_event_inputs(event_type)
 end
 
 local function set_add_event_inputs(event)
-    add_event = {name=event.name, enabled=event.enabled, pattern=event.pattern, code=event.code}
+    add_event = {
+        name=event.name,
+        enabled=char_settings[state.ui.editor.event_type][event.name],
+        pattern=event.pattern,
+        code=event.code
+    }
 end
 
 local function get_event_list(event_type)
@@ -115,7 +141,7 @@ local function save_event()
         if state.ui.editor.event_type == event_types.text and add_event.pattern:len() == 0 then
             return
         end
-        local new_event = {name=add_event.name, enabled=add_event.enabled}
+        local new_event = {name=add_event.name}
         if state.ui.editor.event_type == event_types.text then
             new_event.pattern = add_event.pattern
             mq.unevent(new_event.name)
@@ -127,6 +153,7 @@ local function save_event()
             unload_event_package(state.ui.editor.event_type, add_event.name)
             events[state.ui.editor.event_idx] = new_event
         end
+        char_settings[state.ui.editor.event_type][add_event.name] = add_event.enabled
         save_settings()
         state.ui.editor.open_ui = false
     end
@@ -134,7 +161,11 @@ end
 
 local function draw_event_editor()
     if not state.ui.editor.open_ui then return end
-    state.ui.editor.open_ui, state.ui.editor.draw_ui = ImGui.Begin('Event Editor###lemeditor', state.ui.editor.open_ui)
+    local title = 'Event Editor###lemeditor'
+    if state.ui.editor.action == actions.add then
+        title = 'Add Event###lemeditor'
+    end
+    state.ui.editor.open_ui, state.ui.editor.draw_ui = ImGui.Begin(title, state.ui.editor.open_ui)
     if state.ui.editor.draw_ui then
         if ImGui.Button('Save') then
             save_event()
@@ -164,7 +195,7 @@ local function draw_event_viewer()
         ImGui.TextColored(1, 1, 0, 1, 'Name: ')
         ImGui.SameLine()
         ImGui.SetCursorPosX(100)
-        if event.enabled then
+        if char_settings[state.ui.editor.event_type][event.name] then
             ImGui.TextColored(0, 1, 0, 1, event.name)
         else
             ImGui.TextColored(1, 0, 0, 1, event.name .. ' (Disabled)')
@@ -217,7 +248,7 @@ local function draw_event_control_buttons(event_type)
         ImGui.SameLine()
         if ImGui.Button('Remove Event') then
             table.remove(events, state.ui.main.event_idx)
-            if event_type == event_types.text and event.enabled then
+            if event_type == event_types.text and char_settings[event_type][event.name] then
                 mq.unevent(event.name)
             end
             unload_event_package(event_type, event.name)
@@ -243,7 +274,7 @@ local function draw_events_table(event_type)
                 local event = events[row_n + 1]
                 ImGui.TableNextRow()
                 ImGui.TableNextColumn()
-                if event.enabled then
+                if char_settings[event_type][event.name] then
                     ImGui.PushStyleColor(ImGuiCol.Text, 0, 1, 0, 1)
                 else
                     ImGui.PushStyleColor(ImGuiCol.Text, 1, 0, 0, 1)
@@ -287,6 +318,14 @@ local function draw_settings_section()
     end
 end
 
+local function draw_reload_section()
+    if ImGui.Button('Reload Settings') then
+        mq.cmd('/timed 10 /lua run lem')
+        state.terminate = true
+    end
+    ImGui.Text('Reload currently just restarts the script.')
+end
+
 local sections = {
     {
         name='Text Events', 
@@ -305,6 +344,10 @@ local sections = {
     {
         name='Settings',
         handler=draw_settings_section,
+    },
+    {
+        name='Reload',
+        handler=draw_reload_section,
     }
 }
 
@@ -419,7 +462,7 @@ end
 
 local function manage_events()
     for _,event in ipairs(text_events) do
-        if event.enabled and not event.registered and not event.failed then
+        if char_settings[event_types.text][event.name] and not event.registered and not event.failed then
             local success, result = pcall(require, 'lem.events.'..event.name)
             if not success then
                 result = nil
@@ -431,7 +474,7 @@ local function manage_events()
                 mq.event(event.name, event.pattern, event.func)
                 event.registered = true
             end
-        elseif not event.enabled and event.registered then
+        elseif not char_settings[event_types.text][event.name] and event.registered then
             print('Deregistering event: \ay'..event.name..'\ax')
             mq.unevent(event.name)
             event.registered = false
@@ -442,7 +485,7 @@ end
 
 local function manage_conditions()
     for _,event in ipairs(condition_events) do
-        if event.enabled then
+        if char_settings[event_types.cond][event.name] then
             if not event.loaded and not event.failed then
                 local success, result = pcall(require, 'lem.conditions.'..event.name)
                 if not success then
@@ -462,8 +505,8 @@ local function manage_conditions()
 end
 
 local function toggle_event(event, event_type)
-    event.enabled = not event.enabled
-    if not event.enabled then
+    char_settings[event_type][event.name] = not char_settings[event_type][event.name]
+    if not char_settings[event_type][event.name] then
         unload_event_package(event_type, event.name)
         event.loaded = false
         event.func = nil
@@ -481,6 +524,7 @@ local function print_help()
     print('\t- \ay/lem cond <event_name>\ax -- Toggle the named condition event on/off.')
     print('\t- \ay/lem show\ax -- Show the UI.')
     print('\t- \ay/lem hide\ax -- Hide the UI.')
+    print('\t- \ay/lem reload\ax -- Reload settings (Currently just restarts the script).')
 end
 
 local function cmd_handler(...)
@@ -506,20 +550,24 @@ local function cmd_handler(...)
         for _,event in ipairs(condition_events) do
             if event.name == event_name then
                 toggle_event(event, event_types.cond)
+                print(('Condition event \ay%s\ax enabled: %s'):format(event.name, char_settings[event_types.cond][event.name]))
             end
         end
     elseif command == 'show' then
         state.ui.main.open_ui = true
     elseif command == 'hide' then
         state.ui.main.open_ui = false
+    elseif command == 'reload' then
+        mq.cmd('/timed 10 /lua run lem')
+        state.terminate = true
     end
 end
 
+init_char_settings()
 mq.imgui.init('Lua Event Manager', lem_ui)
-
 mq.bind('/lem', cmd_handler)
 
-while true do
+while not state.terminate do
     manage_events()
     manage_conditions()
     mq.doevents()

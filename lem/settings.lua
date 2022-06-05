@@ -3,40 +3,36 @@ local multiRefObjects = {
 
 } -- multiRefObjects
 local obj1 = {
-	["text_events"] = {
-		[1] = {
-			["enabled"] = true;
-			["name"] = "testevent1";
-			["pattern"] = "#*#say my name#*#";
-		};
-		[2] = {
-			["enabled"] = true;
-			["name"] = "testevent2";
-			["pattern"] = "#*#say my class#*#";
-		};
+	["settings"] = {
+		["frequency"] = 250;
 	};
 	["condition_events"] = {
-		[1] = {
-			["name"] = "testevent1";
-			["enabled"] = false;
-		};
 		[2] = {
 			["name"] = "testevent2";
-			["enabled"] = false;
+		};
+		[1] = {
+			["name"] = "testevent1";
 		};
 	};
 	["characters"] = {
 		["Character1"] = {
-			["text_events"] = {
-				["testevent1"] = 1;
-				["testevent2"] = 1;
-			};
 			["condition_events"] = {
+			};
+			["text_events"] = {
+				["testevent2"] = 1;
+				["testevent1"] = 1;
 			};
 		};
 	};
-	["settings"] = {
-		["frequency"] = 250;
+	["text_events"] = {
+		[2] = {
+			["name"] = "testevent2";
+			["pattern"] = "#*#say my class#*#";
+		};
+		[1] = {
+			["name"] = "testevent1";
+			["pattern"] = "#*#say my name#*#";
+		};
 	};
 }
 return obj1
