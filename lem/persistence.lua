@@ -2,6 +2,32 @@
 local write, writeIndent, writers, refCount;
 local persistence =
 {
+	file_exists = function(file)
+		local f = io.open(file, "r")
+		if f ~= nil then io.close(f) return true else return false end
+	end;
+
+	read_file = function(file)
+		local f,e = io.open(file, 'r')
+		if not f then return error(e) end
+		local contents = f:read('*a')
+		io.close(f)
+		return contents
+	end;
+
+	write_file = function(file, contents)
+		local f,e = io.open(file, 'w')
+		if not f then return error(e) end
+		f:write(contents)
+		io.close(f)
+	end;
+
+	delete_file = function(filename)
+		local command = ('del %s'):format(filename):gsub('/', '\\')
+		local pipe = io.popen(command)
+		if pipe then pipe:close() end
+	end;
+
 	store = function (path, ...)
 		local file, e = io.open(path, "w");
 		if not file then
@@ -105,7 +131,7 @@ refCount = function (objRefCount, item)
 	end;
 end;
 
-local skip_keys = {code=1,failed=1,loaded=1,registered=1,func=1,funcs=1}
+local skip_keys = {code=1,failed=1,loaded=1,registered=1,func=1,funcs=1,ui_id=1}
 -- Format items for the purpose of restoring
 writers = {
 	["nil"] = function (file, item)
