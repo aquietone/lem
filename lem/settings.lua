@@ -19,7 +19,6 @@ local obj1 = {
 	["characters"] = {
 		["Character1"] = {
 			["condition_events"] = {
-				["testevent1"] = 1;
 			};
 			["text_events"] = {
 				["testevent2"] = 1;
@@ -29,15 +28,11 @@ local obj1 = {
 	};
 	["text_events"] = {
 		[1] = {
-			["registered"] = true;
-			["func"] = nil --[[functions with upvalue not supported]];
 			["enabled"] = true;
 			["name"] = "testevent1";
 			["pattern"] = "#*#say my name#*#";
 		};
 		[2] = {
-			["registered"] = true;
-			["func"] = nil --[[functions with upvalue not supported]];
 			["enabled"] = true;
 			["name"] = "testevent2";
 			["pattern"] = "#*#say my class#*#";
