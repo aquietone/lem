@@ -11,9 +11,18 @@ local banes = {
 }
 
 local function on_load()
-    -- Initialize anything here when the event loads
+    if mq.TLO.Zone.ShortName() ~= required_zone then return end
+    local bane = banes[mq.TLO.Me.Class.ShortName()]
+    if bane and bane.type == 'spell' then
+        mq.cmd('/boxr pause')
+        mq.cmdf('/memspell 13 "%s"', bane.name)
+        mq.delay('4s')
+        mq.TLO.Window('SpellBookWnd').DoClose()
+        mq.cmd('/boxr unpause')
+    end
 end
 
+---@return boolean @Returns true if the action should fire, otherwise false.
 local function condition()
     return mq.TLO.Zone.ShortName() == required_zone and mq.TLO.SpawnCount(('%s npc'):format(bane_mob_name))() > 0
 end
