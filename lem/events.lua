@@ -180,6 +180,9 @@ events.export = function(event, event_type)
         type = event_type,
         load = event.load,
     }
+    if exported_event.load then
+        exported_event.load.characters = nil
+    end
     return base64.enc('return '..serialize_table(exported_event))
 end
 
@@ -204,6 +207,9 @@ events.import = function(import_string, categories)
             end
         end
         if not category_found then imported_event.category = '' end
+    end
+    if imported_event.load then
+        imported_event.load.characters = ''
     end
     return imported_event
 end
