@@ -191,7 +191,7 @@ events.import = function(import_string, categories)
     local decoded = base64.dec(import_string)
     if not decoded or decoded == '' then return end
     local ok, imported_event = pcall(loadstring(decoded))
-    if not ok then
+    if not ok or not type(imported_event) == 'table' then
         print('\arERROR: Failed to import event\ax')
         return
     end

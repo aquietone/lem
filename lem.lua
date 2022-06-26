@@ -261,9 +261,11 @@ end
 local function draw_import_window()
     if ImGui.Button('Import Event') then
         local imported_event = events.import(state.inputs.import, categories)
-        set_editor_state(true, actions.add, imported_event.type, nil)
-        set_add_event_inputs(imported_event)
-        state.inputs.import = ''
+        if imported_event then
+            set_editor_state(true, actions.add, imported_event.type, nil)
+            set_add_event_inputs(imported_event)
+            state.inputs.import = ''
+        end
     end
     ImGui.SameLine()
     if ImGui.Button('Paste from clipboard') then
@@ -412,7 +414,7 @@ local function draw_event_table_context_menu(event, event_type)
             ImGui.SetClipboardText(events.export(event, event_type))
         end
         if ImGui.MenuItem('Edit in VS Code') then
-            os.execute('code '..events.filename(event.name, event_type))
+            os.execute('start '..events.filename(event.name, event_type))
         end
         ImGui.EndPopup()
     end
