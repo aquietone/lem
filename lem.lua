@@ -132,13 +132,6 @@ end
 
 local function toggle_event(event, event_type)
     char_settings[event_type][event.name] = not char_settings[event_type][event.name]
-    if not char_settings[event_type][event.name] then
-        if event_type == events.types.text then print('Deregistering event: \ay'..event.name..'\ax') end
-        events.unload_package(event.name, event_type)
-        event.loaded = false
-        event.func = nil
-        event.failed = nil
-    end
     save_character_settings()
 end
 
@@ -798,7 +791,6 @@ local function cmd_handler(...)
                 return -- event is already off, do nothing
             end
             toggle_event(event, events.types.cond)
-            print(('Condition event \ay%s\ax enabled: %s'):format(event.name, char_settings[events.types.cond][event.name]))
         end
     elseif command == 'show' then
         state.ui.main.open_ui = true
@@ -828,6 +820,7 @@ init_char_settings()
 validate_events()
 mq.imgui.init('Lua Event Manager', lem_ui)
 mq.bind('/lem', cmd_handler)
+mq.bind('/mlem', cmd_handler)
 
 while not state.terminate do
     events.manage(text_events, events.types.text, char_settings)

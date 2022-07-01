@@ -107,8 +107,10 @@ end
 events.unload = function(event, event_type)
     print('Deregistering event: \ay'..event.name..'\ax')
     if event_type == events.types.text then mq.unevent(event.name) end
+    events.unload_package(event.name, event_type)
     event.loaded = false
     event.func = nil
+    event.failed = nil
 end
 
 events.evaluate_condition = function(event)
