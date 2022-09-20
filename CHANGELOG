@@ -1,3 +1,5 @@
+0.4.4
+- Fix import/edit event with no load section
 0.4.3
 - Add `Edit in VS Code` button to events
 0.4.2

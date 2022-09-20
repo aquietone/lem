@@ -95,6 +95,12 @@ events.load = function(event, event_type)
             local tmpfunc = event.func
             event.func = {eventfunc=tmpfunc}
         end
+        if type(event.func) ~= 'table' then
+            result = nil
+            event.failed = true
+            print('Event registration failed: \ay'..event.name..'\ax, event functions not correctly defined.')
+            return
+        end
         success = events.initialize(event)
         if success then
             print('Registering event: \ay'..event.name..'\ax')

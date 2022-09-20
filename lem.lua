@@ -1,12 +1,14 @@
 --[[
 lua event manager -- aquietone
 ]]
+---@type Mq
 local mq = require 'mq'
+---@type ImGui
 require 'ImGui'
 local events = require('lem.events')
 local persistence = require('lem.persistence')
 local templates = require('lem.templates.index')
-local version = '0.4.3'
+local version = '0.4.5'
 
 -- application state
 local state = {
@@ -111,6 +113,13 @@ local function set_add_event_inputs(event)
             characters=event.load.characters,
             class=event.load.class,
             zone=event.load.zone,
+        }
+    else
+        state.inputs.add_event.load = {
+            always=false,
+            characters='',
+            class='',
+            zone=''
         }
     end
 end
