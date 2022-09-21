@@ -81,6 +81,11 @@ events.initialize = function(event)
     return success
 end
 
+events.reload = function(event, event_type)
+    events.unload(event, event_type)
+    events.load(event, event_type)
+end
+
 events.load = function(event, event_type)
     local subfolder = 'events'
     if event_type == events.types.cond then subfolder = 'conditions' end

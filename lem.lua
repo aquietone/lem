@@ -8,7 +8,7 @@ require 'ImGui'
 local events = require('lem.events')
 local persistence = require('lem.persistence')
 local templates = require('lem.templates.index')
-local version = '0.4.5'
+local version = '0.4.6'
 
 -- application state
 local state = {
@@ -273,7 +273,11 @@ local function draw_import_window()
     if ImGui.Button('Paste from clipboard') then
         state.inputs.import = ImGui.GetClipboardText()
     end
-    state.inputs.import = ImGui.InputTextMultiline('##importeventtext', state.inputs.import)
+    state.inputs.import = ImGui.InputText('##importeventtext', state.inputs.import)
+    local width = ImGui.GetContentRegionAvail()
+    ImGui.PushTextWrapPos(width-15)
+    ImGui.Text('Paste base64 encoded string data (it will look like a very long, random string of letters and numbers)')
+    ImGui.PopTextWrapPos()
 end
 
 local function draw_event_viewer_general(event)
@@ -285,11 +289,16 @@ local function draw_event_viewer_general(event)
     end
     ImGui.SameLine()
     if ImGui.Button('Edit In VS Code') then
-        os.execute('code '..events.filename(event.name, state.ui.editor.event_type))
+        os.execute('start '..events.filename(event.name, state.ui.editor.event_type))
     end
     ImGui.SameLine()
     if ImGui.Button('Export Event') then
         ImGui.SetClipboardText(events.export(event, state.ui.editor.event_type))
+    end
+    ImGui.SameLine()
+    if ImGui.Button('Reload Source') then
+        event.code = persistence.read_file(events.filename(event.name, state.ui.editor.event_type))
+        events.reload(event, state.ui.editor.event_type)
     end
     if event.failed then
         ImGui.TextColored(1, 0, 0, 1, 'ERROR: Event failed to load!')
@@ -417,6 +426,10 @@ local function draw_event_table_context_menu(event, event_type)
         end
         if ImGui.MenuItem('Edit in VS Code') then
             os.execute('start '..events.filename(event.name, event_type))
+        end
+        if ImGui.MenuItem('Reload Source') then
+            event.code = persistence.read_file(events.filename(event.name, event_type))
+            events.reload(event, event_type)
         end
         ImGui.EndPopup()
     end

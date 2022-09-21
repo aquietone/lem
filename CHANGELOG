@@ -1,5 +1,9 @@
-0.4.4
+0.4.6
+- Add reload source button
+0.4.5
 - Fix import/edit event with no load section
+0.4.4
+- Fix disable event
 0.4.3
 - Add `Edit in VS Code` button to events
 0.4.2
