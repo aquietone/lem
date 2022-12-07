@@ -40,6 +40,14 @@ local state = {
     },
 }
 
+local function fileExists(path)
+    local f = io.open(path, "r")
+    if f ~= nil then io.close(f) return true else return false end
+end
+if fileExists(mq.luaDir..'/lem.lua') then
+    os.remove(mq.luaDir..'/lem.lua')
+end
+
 local table_flags = bit32.bor(ImGuiTableFlags.Hideable, ImGuiTableFlags.RowBg, ImGuiTableFlags.ScrollY, ImGuiTableFlags.BordersOuter)
 local actions = {add=1,edit=2,view=3,add_category=4}
 local base_dir = mq.luaDir .. '/lem'
