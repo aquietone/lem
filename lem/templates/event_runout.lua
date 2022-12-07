@@ -30,7 +30,7 @@ local function run_away()
 end
 
 local function event_handler(line, target)
-    if not mq.TLO.Zone.ShortName() == required_zone then return end
+    if mq.TLO.Zone.ShortName() ~= required_zone then return end
 
     local i_am_ma = mq.TLO.Group.Member(0).MainAssist()
     local my_name = mq.TLO.Me.CleanName()

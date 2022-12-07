@@ -57,12 +57,13 @@ library.get_target_by_name = function(name, type)
     end
 end
 
----Determine whether currently in control of the character, i.e. not CC'd, stunned, mezzed, etc.
----@return boolean @Returns true if not under any loss of control effects, false otherwise.
+---Return whether you are currently in control of your character.
+---@return boolean @True if not under any loss of control effects, otherwise false.
 library.in_control = function()
-    return not (mq.TLO.Me.Dead() or mq.TLO.Me.Ducking() or mq.TLO.Me.Charmed() or
-            mq.TLO.Me.Stunned() or mq.TLO.Me.Silenced() or mq.TLO.Me.Feigning() or
-            mq.TLO.Me.Mezzed() or mq.TLO.Me.Invulnerable() or mq.TLO.Me.Hovering())
+    local me = mq.TLO.Me
+    return not me.Dead() and not me.Ducking() and not me.Charmed() and
+        not me.Stunned() and not me.Silenced() and not me.Feigning() and
+        not me.Mezzed() and not me.Invulnerable() and not me.Hovering()
 end
 
 ---Return whether any UI windows are open which block doing things in game like casting spells.

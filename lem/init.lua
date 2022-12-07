@@ -8,7 +8,7 @@ require 'ImGui'
 local events = require('lem.events')
 local persistence = require('lem.persistence')
 local templates = require('lem.templates.index')
-local version = '0.4.6'
+local version = '0.4.7'
 
 -- application state
 local state = {
