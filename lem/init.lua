@@ -8,7 +8,7 @@ require 'ImGui'
 local events = require('lem.events')
 local persistence = require('lem.persistence')
 local templates = require('lem.templates.index')
-local version = '0.4.7'
+local version = '0.4.8'
 
 -- application state
 local state = {
@@ -843,6 +843,11 @@ local function validate_events()
             event.load = {always=false,zone='',class='',characters='',}
         end
     end
+end
+
+local args = {...}
+if #args == 1 then
+    if args[1] == 'bg' then state.ui.main.open_ui = false end
 end
 
 init_settings()

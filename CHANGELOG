@@ -1,3 +1,5 @@
+0.4.8
+- Add `bg` start parameter to start script with UI hidden
 0.4.7
 - Change to use init.lua
 0.4.6
