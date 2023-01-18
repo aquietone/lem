@@ -8,7 +8,7 @@ require 'ImGui'
 local events = require('lem.events')
 local persistence = require('lem.persistence')
 local templates = require('lem.templates.index')
-local version = '0.4.8'
+local version = '0.4.9'
 
 -- application state
 local state = {
@@ -297,7 +297,7 @@ local function draw_event_viewer_general(event)
     end
     ImGui.SameLine()
     if ImGui.Button('Edit In VS Code') then
-        os.execute('start '..events.filename(event.name, state.ui.editor.event_type))
+        os.execute('start "" "'..events.filename(event.name, state.ui.editor.event_type)..'"')
     end
     ImGui.SameLine()
     if ImGui.Button('Export Event') then
@@ -433,7 +433,7 @@ local function draw_event_table_context_menu(event, event_type)
             ImGui.SetClipboardText(events.export(event, event_type))
         end
         if ImGui.MenuItem('Edit in VS Code') then
-            os.execute('start '..events.filename(event.name, event_type))
+            os.execute('start "" "'..events.filename(event.name, event_type)..'"')
         end
         if ImGui.MenuItem('Reload Source') then
             event.code = persistence.read_file(events.filename(event.name, event_type))

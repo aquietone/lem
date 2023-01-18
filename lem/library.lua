@@ -6,7 +6,7 @@ To use, add the following line to your event code:
     local library = require('lem.library')
 
 ]]
----@type Mq
+--- @type Mq
 local mq = require('mq')
 
 local library = {}

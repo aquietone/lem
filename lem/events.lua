@@ -1,3 +1,4 @@
+--- @type Mq
 local mq = require('mq')
 local persistence = require('lem.persistence')
 local base64 = require('lem.base64')
@@ -94,6 +95,7 @@ events.load = function(event, event_type)
         result = nil
         event.failed = true
         print('Event registration failed: \ay'..event.name..'\ax')
+        printf('To get more error output, you could try: "/lua run lem/%s/%s"', subfolder, event.name)
     else
         event.func = result
         if type(event.func) == 'function' then
