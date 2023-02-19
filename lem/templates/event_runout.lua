@@ -1,4 +1,7 @@
+---@type Mq
 local mq = require('mq')
+
+if not package.loaded['lem.events'] then print('This script is intended to be imported to Lua Event Manager (LEM). Try "\a-t/lua run lem\a-t"') end
 
 -- compare zone name to skip event if not in the correct zone
 local required_zone = 'vexthaltwo_mission'
@@ -18,15 +21,16 @@ local function run_away()
     mq.cmdf('/%s mode 0', my_class)
     mq.cmd('/mqp on')
     mq.cmd('/twist off')
-    mq.cmd('/timed 5 /afollow off')
+    mq.cmd('/afollow off')
     mq.cmd('/nav stop')
     mq.cmd('/target clear')
     -- run away
-    mq.cmdf('/timed 10 /nav locxyz %d %d %d', run_away_loc.x, run_away_loc.y, run_away_loc.z)
+    mq.cmdf('/nav locxyz %d %d %d', run_away_loc.x, run_away_loc.y, run_away_loc.z)
+    mq.delay(return_delay)
     -- resume all the things
-    mq.cmdf('/timed %d /%s mode 2', return_delay, my_class)
-    mq.cmd('/timed 150 /mqp off')
-    mq.cmd('/timed 150 /twist on')
+    mq.cmdf('/%s mode 2', return_delay, my_class)
+    mq.cmd('/mqp off')
+    mq.cmd('/twist on')
 end
 
 local function event_handler(line, target)

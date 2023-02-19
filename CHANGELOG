@@ -1,3 +1,6 @@
+0.5.0
+- Add enable/disable for all options to right click menu
+- This will use dga, dgga or dgga to enable or disable the event based on whether it is currently enabled or disabled for the toon using the menu.
 0.4.9
 - Handle spaces in event names for "edit in vs code" button
 0.4.8

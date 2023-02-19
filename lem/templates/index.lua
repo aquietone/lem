@@ -1,14 +1,23 @@
+---@type Mq
 local mq = require('mq')
 local base_dir = mq.luaDir .. '/lem'
 
 local text_code_template = "local mq = require('mq')\n\
+-- Do not edit this if condition\
+if not package.loaded['lem.events'] then\
+    print('This script is intended to be imported to Lua Event Manager (LEM). Try \"\a-t/lua run lem\a-t\"')\
+end\n\
 local function on_load()\n    -- Perform any initial setup here when the event is loaded.\nend\n\
 local function event_handler()\n    -- Implement the handling for the event here.\nend\n\
 return {onload=on_load, eventfunc=event_handler}"
 
 local condition_code_template = "local mq = require('mq')\n\
----@return boolean @Returns true if the action should fire, otherwise false.\
+-- Do not edit this if condition\
+if not package.loaded['lem.events'] then\
+    print('This script is intended to be imported to Lua Event Manager (LEM). Try \"\a-t/lua run lem\a-t\"')\
+end\n\
 local function on_load()\n    -- Perform any initial setup here when the event is loaded.\nend\n\
+---@return boolean @Returns true if the action should fire, otherwise false.\
 local function condition()\n    -- Implement the condition to evaluate here.\nend\n\
 local function action()\n    -- Implement the action to perform here.\nend\n\
 return {onload=on_load, condfunc=condition, actionfunc=action}"

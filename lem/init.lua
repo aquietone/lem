@@ -8,7 +8,7 @@ require 'ImGui'
 local events = require('lem.events')
 local persistence = require('lem.persistence')
 local templates = require('lem.templates.index')
-local version = '0.4.9'
+local version = '0.5.0'
 
 -- application state
 local state = {
@@ -438,6 +438,19 @@ local function draw_event_table_context_menu(event, event_type)
         if ImGui.MenuItem('Reload Source') then
             event.code = persistence.read_file(events.filename(event.name, event_type))
             events.reload(event, event_type)
+        end
+        local event_enabled = char_settings[event_type][event.name] or false
+        local enable_prefix = event_enabled and 'Disable' or 'Enable'
+        local action = event_enabled and '0' or '1'
+        local type_singular = event_type == 'events' and 'event' or 'cond'
+        if ImGui.MenuItem(enable_prefix..' For All') then
+            mq.cmdf('/dga /lem %s %s %s', type_singular, event.name, action)
+        end
+        if ImGui.MenuItem(enable_prefix..' For Raid') then
+            mq.cmdf('/dgra /lem %s %s %s', type_singular, event.name, action)
+        end
+        if ImGui.MenuItem(enable_prefix..'For Group') then
+            mq.cmdf('/dgga /lem %s %s %s', type_singular, event.name, action)
         end
         ImGui.EndPopup()
     end

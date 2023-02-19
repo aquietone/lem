@@ -1,3 +1,4 @@
+---@type Mq
 local mq = require('mq')
 
 local required_zone = 'akhevatwo_mission'
@@ -9,6 +10,8 @@ local banes = {
     ENC={name='Beguiler\'s Banishment',type='aa'},
     SHM={name='Virulent Paralysis',type='aa'},
 }
+
+if not package.loaded['lem.events'] then print('This script is intended to be imported to Lua Event Manager (LEM). Try "\a-t/lua run lem\a-t"') end
 
 local function on_load()
     if mq.TLO.Zone.ShortName() ~= required_zone then return end
