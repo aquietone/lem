@@ -9,7 +9,9 @@ if not package.loaded['lem.events'] then print('This script is intended to be im
 
 ---@return boolean @Returns true if the action should fire, otherwise false.
 local function condition()
-    return mq.TLO.FindItem(itemname)() ~= nil and 
+    Write.Debug('ENTER condition')
+    -- Check everything under the sun just as an example. Usually you can get away with checking a lot less before casting.
+    return mq.TLO.FindItem(itemname)() ~= nil and
         not mq.TLO.Me.Buff(buffname)() and
         mq.TLO.Spell(buffname).Stacks() and
         mq.TLO.Me.FreeBuffSlots() > 0 and
@@ -20,6 +22,8 @@ local function condition()
 end
 
 local function action()
+    Write.Debug('ENTER action')
+    Write.Info('Using item: %s', itemname)
     mq.cmdf('/useitem "%s"', itemname)
 end
 

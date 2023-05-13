@@ -8,7 +8,8 @@ require 'ImGui'
 local events = require('lem.events')
 local persistence = require('lem.persistence')
 local templates = require('lem.templates.index')
-local version = '0.6.0'
+require('write')
+local version = '0.6.1'
 
 -- application state
 local state = {
@@ -595,6 +596,15 @@ local function draw_settings_section()
     ImGui.PopStyleColor()
     if ImGui.Button('Save') then
         save_settings()
+    end
+    ImGui.SetNextItemWidth(100)
+    if ImGui.BeginCombo('Log Level (Not Saved)', Write.loglevel) then
+        for _,loglevel in ipairs({'help', 'fatal', 'error', 'warn', 'info', 'debug', 'trace'}) do
+            if ImGui.Selectable(loglevel, Write.loglevel == loglevel) then
+                Write.loglevel = loglevel
+            end
+        end
+        ImGui.EndCombo()
     end
 end
 

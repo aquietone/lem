@@ -1,3 +1,5 @@
+0.6.1
+- Add Write.lua and update a couple examples to use it
 0.6.0
 - Add sub-categories (1 level only)
 - Prevent deleting a category if it contains any events or sub-categories
