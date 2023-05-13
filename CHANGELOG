@@ -1,3 +1,8 @@
+0.6.0
+- Add sub-categories (1 level only)
+- Prevent deleting a category if it contains any events or sub-categories
+- Add broadcast setting for local, dannet, eqbc for event load/unload messages
+- Add debug option to right click menu on events, will try to /lua run the event script
 0.5.0
 - Add enable/disable for all options to right click menu
 - This will use dga, dgga or dgga to enable or disable the event based on whether it is currently enabled or disabled for the toon using the menu.

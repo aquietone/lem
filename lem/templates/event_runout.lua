@@ -21,16 +21,15 @@ local function run_away()
     mq.cmdf('/%s mode 0', my_class)
     mq.cmd('/mqp on')
     mq.cmd('/twist off')
-    mq.cmd('/afollow off')
+    mq.cmd('/timed 5 /afollow off')
     mq.cmd('/nav stop')
     mq.cmd('/target clear')
     -- run away
-    mq.cmdf('/nav locxyz %d %d %d', run_away_loc.x, run_away_loc.y, run_away_loc.z)
-    mq.delay(return_delay)
+    mq.cmdf('/timed 10 /nav locxyz %d %d %d', run_away_loc.x, run_away_loc.y, run_away_loc.z)
     -- resume all the things
-    mq.cmdf('/%s mode 2', return_delay, my_class)
-    mq.cmd('/mqp off')
-    mq.cmd('/twist on')
+    mq.cmdf('/timed %d /%s mode 2', return_delay, my_class)
+    mq.cmd('/timed 150 /mqp off')
+    mq.cmd('/timed 150 /twist on')
 end
 
 local function event_handler(line, target)

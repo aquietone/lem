@@ -8,7 +8,7 @@ require 'ImGui'
 local events = require('lem.events')
 local persistence = require('lem.persistence')
 local templates = require('lem.templates.index')
-local version = '0.5.0'
+local version = '0.6.0'
 
 -- application state
 local state = {
@@ -36,7 +36,7 @@ local state = {
     inputs = {
         import = '',
         add_event = {name='', category='', enabled=false, pattern='', code='',load={always=false,zone='',class='',characters='',},},
-        add_category = {name=''},
+        add_category = {name='',parent='',parent_idx=0},
     },
 }
 
@@ -48,7 +48,7 @@ if fileExists(mq.luaDir..'/lem.lua') then
     os.remove(mq.luaDir..'/lem.lua')
 end
 
-local table_flags = bit32.bor(ImGuiTableFlags.Hideable, ImGuiTableFlags.RowBg, ImGuiTableFlags.ScrollY, ImGuiTableFlags.BordersOuter)
+local table_flags = bit32.bor(ImGuiTableFlags.Hideable, ImGuiTableFlags.RowBg, ImGuiTableFlags.ScrollY, ImGuiTableFlags.BordersOuter, ImGuiTableFlags.Resizable)
 local actions = {add=1,edit=2,view=3,add_category=4}
 local base_dir = mq.luaDir .. '/lem'
 local menu_default_width = 120
@@ -81,9 +81,16 @@ local function init_settings()
     text_events = settings.text_events or {}
     condition_events = settings.condition_events or {}
     categories = settings.categories or {}
-    if not settings.settings or not settings.settings.frequency then
-        settings['settings'] = {frequency = 250}
+    for i,category in ipairs(categories) do
+        if type(category) == 'string' then
+            categories[i] = {name=category, children={}}
+        end
     end
+    if not settings.settings or not settings.settings.frequency then
+        settings['settings'] = {frequency = 250, broadcast = 'DanNet'}
+    end
+    if not settings.settings.broadcast then settings.settings.broadcast = 'None' end
+    events.setSettings(settings)
 end
 
 local function init_char_settings()
@@ -193,14 +200,19 @@ local function draw_event_editor_general(add_event)
     add_event.name,_ = ImGui.InputText('Event Name', add_event.name)
     if ImGui.BeginCombo('Category', add_event.category or '') then
         for _,j in pairs(categories) do
-            if ImGui.Selectable(j, j == add_event.category) then
-                add_event.category = j
+            if ImGui.Selectable(j.name, j.name == add_event.category) then
+                add_event.category = j.name
+            end
+            for _,k in pairs(j.children) do
+                if ImGui.Selectable('- '..k.name, k.name == add_event.category) then
+                    add_event.category = k.name
+                end
             end
         end
         ImGui.EndCombo()
     end
     -- per character enabled flag currently in use instead of dynamic load options
-    add_event.enabled,_ = ImGui.Checkbox('Event Enabled', add_event.enabled, add_event.enabled)
+    add_event.enabled,_ = ImGui.Checkbox('Event Enabled', add_event.enabled)
     if state.ui.editor.event_type == events.types.text then
         add_event.pattern,_ = ImGui.InputText('Event Pattern', add_event.pattern)
     end
@@ -235,7 +247,7 @@ end
 
 local function draw_event_editor_load(add_event)
     ImGui.TextColored(1, 1, 0, 1, '>>> UNDER CONSTRUCTION - NOT IN USE <<<')
-    add_event.load.always = ImGui.Checkbox('Always', add_event.load.always, add_event.load.always)
+    add_event.load.always = ImGui.Checkbox('Always', add_event.load.always)
     add_event.load.zone,_ = ImGui.InputText('Zone Shortname', add_event.load.zone)
     add_event.load.class,_ = ImGui.InputText('Classes', add_event.load.class)
     add_event.load.character,_ = ImGui.InputText('Characters', add_event.load.characters)
@@ -258,10 +270,10 @@ local function draw_event_editor()
                 draw_event_editor_general(add_event)
                 ImGui.EndTabItem()
             end
-            if ImGui.BeginTabItem('Load') then
+            --[[if ImGui.BeginTabItem('Load') then
                 draw_event_editor_load(add_event)
                 ImGui.EndTabItem()
-            end
+            end]]
             ImGui.EndTabBar()
         end
     end
@@ -452,6 +464,9 @@ local function draw_event_table_context_menu(event, event_type)
         if ImGui.MenuItem(enable_prefix..'For Group') then
             mq.cmdf('/dgga /lem %s %s %s', type_singular, event.name, action)
         end
+        if ImGui.MenuItem('DEBUG: Run event script') then
+            mq.cmdf('/lua run lem/%s/%s', event_type, event.name)
+        end
         ImGui.EndPopup()
     end
 end
@@ -518,11 +533,27 @@ local function draw_events_table(event_type)
             for _,category in ipairs(categories) do
                 ImGui.TableNextRow()
                 ImGui.TableNextColumn()
-                local open = ImGui.TreeNodeEx(category, ImGuiTreeNodeFlags.SpanFullWidth)
+                local open = ImGui.TreeNodeEx(category.name, ImGuiTreeNodeFlags.SpanFullWidth)
                 ImGui.TableNextColumn()
                 if open then
+                    for _,subcategory in ipairs(category.children) do
+                        ImGui.TableNextRow()
+                        ImGui.TableNextColumn()
+                        local subopen = ImGui.TreeNodeEx(subcategory.name, ImGuiTreeNodeFlags.SpanFullWidth)
+                        ImGui.TableNextColumn()
+                        if subopen then
+                            for _,event in pairs(event_list) do
+                                if event.category == subcategory.name then
+                                    ImGui.TableNextRow()
+                                    ImGui.TableNextColumn()
+                                    draw_event_table_row(event, event_type)
+                                end
+                            end
+                            ImGui.TreePop()
+                        end
+                    end
                     for _,event in pairs(event_list) do
-                        if event.category == category then
+                        if event.category == category.name then
                             ImGui.TableNextRow()
                             ImGui.TableNextColumn()
                             draw_event_table_row(event, event_type)
@@ -550,7 +581,17 @@ end
 
 local function draw_settings_section()
     ImGui.PushStyleColor(ImGuiCol.Text, 1, 1, 0, 1)
+    ImGui.SetNextItemWidth(100)
     settings.settings.frequency = ImGui.InputInt('Frequency', settings.settings.frequency)
+    ImGui.SetNextItemWidth(100)
+    if ImGui.BeginCombo('Broadcast Event Enable/Disable', settings.settings.broadcast or 'None') then
+        for _,channel in ipairs({'None', 'DanNet', 'EQBC'}) do
+            if ImGui.Selectable(channel, settings.settings.broadcast == channel) then
+                settings.settings.broadcast = channel
+            end
+        end
+        ImGui.EndCombo()
+    end
     ImGui.PopStyleColor()
     if ImGui.Button('Save') then
         save_settings()
@@ -567,9 +608,16 @@ end
 
 local function save_category()
     if state.inputs.add_category.name:len() > 0 then
-        table.insert(settings.categories, state.inputs.add_category.name)
+        if state.inputs.add_category.parent:len() > 0 then
+            table.insert(settings.categories[state.inputs.add_category.parent_idx].children, {name=state.inputs.add_category.name, children={}})
+        else
+            table.insert(settings.categories, {name=state.inputs.add_category.name, children={}})
+        end
         save_settings()
         state.ui.editor.open_ui = false
+        state.inputs.add_category.name = ''
+        state.inputs.add_category.parent = ''
+        state.inputs.add_category.parent_idx = 0
     end
 end
 
@@ -580,6 +628,19 @@ local function draw_category_editor()
             save_category()
         end
         state.inputs.add_category.name,_ = ImGui.InputText('Category Name', state.inputs.add_category.name)
+        if ImGui.BeginCombo('Parent Category', state.inputs.add_category.parent or '') then
+            if ImGui.Selectable('None', state.inputs.add_category.parent == '') then
+                state.inputs.add_category.parent = ''
+                state.inputs.add_category.parent_idx = 0
+            end
+            for parentIdx,category in ipairs(categories) do
+                if ImGui.Selectable(category.name, state.inputs.add_category.parent == category.name) then
+                    state.inputs.add_category.parent = category.name
+                    state.inputs.add_category.parent_idx = parentIdx
+                end
+            end
+            ImGui.EndCombo()
+        end
     end
     ImGui.End()
 end
@@ -589,30 +650,36 @@ local function draw_categories_control_buttons()
         state.ui.editor.open_ui = true
         state.ui.editor.action = actions.add_catogory
     end
-    if state.ui.main.category_idx then
+    if state.ui.main.category_name or state.ui.main.subcategory_name then
         ImGui.SameLine()
         if ImGui.Button('Remove Category') then
+            local categoryName = state.ui.main.subcategory_name or state.ui.main.category_name
             for _,event in pairs(text_events) do
-                if event.category == categories[state.ui.main.category_idx] then
-                    event.category = nil
+                if event.category == categoryName then
+                    printf('\arCannot delete category \ay%s\ax, text event \ay%s\ax belongs to it.\ax', categoryName, event.name)
+                    return
                 end
             end
             for _,event in pairs(condition_events) do
-                if event.category == categories[state.ui.main.category_idx] then
-                    event.category = nil
+                if event.category == categoryName then
+                    printf('\arCannot delete category \ay%s\ax, condition event \ay%s\ax belongs to it.\ax', categoryName, event.name)
+                    return
                 end
             end
-            table.remove(categories, state.ui.main.category_idx)
+            if not state.ui.main.subcategory_name and #categories[state.ui.main.category_idx].children > 0 then
+                printf('\arCannot delete category \ay%s\ax as it has sub-categories.\ax', categoryName)
+                return
+            end
+            if state.ui.main.subcategory_name then
+                table.remove(categories[state.ui.main.category_idx].children, state.ui.main.category_subidx)
+            else
+                table.remove(categories, state.ui.main.category_idx)
+            end
             state.ui.main.category_idx = 0
+            state.ui.main.category_subidx = 0
+            state.ui.main.category_name = nil
+            state.ui.main.subcategory_name = nil
             save_settings()
-        end
-    end
-end
-
-local function draw_categories_table_row(idx, category)
-    if ImGui.Selectable(category, state.ui.main.category_idx == idx, ImGuiSelectableFlags.SpanAllColumns) then
-        if state.ui.main.category_idx ~= idx then
-            state.ui.main.category_idx = idx
         end
     end
 end
@@ -630,7 +697,33 @@ local function draw_categories_table()
                 local category = categories[row_n + 1]
                 ImGui.TableNextRow()
                 ImGui.TableNextColumn()
-                draw_categories_table_row(row_n + 1, category)
+                if #category.children > 0 then
+                    local open = ImGui.TreeNode(category.name)
+                    if open then
+                        for subindex,subcategory in ipairs(category.children) do
+                            ImGui.TableNextRow()
+                            ImGui.TableNextColumn()
+                            if ImGui.Selectable(subcategory.name, state.ui.main.category_subidx == subindex and state.ui.main.category_idx == row_n + 1) then
+                                if state.ui.main.category_subidx ~= subindex or state.ui.main.category_idx ~= row_n + 1 then
+                                    state.ui.main.category_idx = row_n + 1
+                                    state.ui.main.category_subidx = subindex
+                                    state.ui.main.category_name = category.name
+                                    state.ui.main.subcategory_name = subcategory.name
+                                end
+                            end
+                        end
+                        ImGui.TreePop()
+                    end
+                else
+                    if ImGui.Selectable(category.name, state.ui.main.category_idx == row_n + 1) then
+                        if state.ui.main.category_idx ~= row_n + 1 then
+                            state.ui.main.category_idx = row_n + 1
+                            state.ui.main.category_subidx = 0
+                            state.ui.main.category_name = category.name
+                            state.ui.main.subcategory_name = nil
+                        end
+                    end
+                end
             end
         end
         ImGui.EndTable()

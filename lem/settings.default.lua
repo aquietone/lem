@@ -4,12 +4,13 @@ local multiRefObjects = {
 } -- multiRefObjects
 local obj1 = {
 	["categories"] = {
-		[1] = "ToL";
-		[2] = "CoV";
-		[3] = "ToV";
-		[4] = "TBL";
-		[5] = "RoS";
-		[6] = "EoK";
+		[1] = "NoS";
+		[2] = "ToL";
+		[3] = "CoV";
+		[4] = "ToV";
+		[5] = "TBL";
+		[6] = "RoS";
+		[7] = "EoK";
 	};
 	["condition_events"] = {
 		["testevent1"] = {

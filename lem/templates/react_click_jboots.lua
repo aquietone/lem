@@ -9,7 +9,7 @@ if not package.loaded['lem.events'] then print('This script is intended to be im
 
 ---@return boolean @Returns true if the action should fire, otherwise false.
 local function condition()
-    return mq.TLO.FindItem(itemname)() and 
+    return mq.TLO.FindItem(itemname)() ~= nil and 
         not mq.TLO.Me.Buff(buffname)() and
         mq.TLO.Spell(buffname).Stacks() and
         mq.TLO.Me.FreeBuffSlots() > 0 and

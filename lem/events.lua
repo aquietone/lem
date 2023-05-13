@@ -8,6 +8,11 @@ local events = {
     types = {text='events',cond='conditions'}
 }
 
+local settings
+function events.setSettings(s)
+    settings = s
+end
+
 events.filename = function(event_name, event_type)
     return ('%s/%s/%s.lua'):format(base_dir, event_type, event_name)
 end
@@ -87,6 +92,16 @@ events.reload = function(event, event_type)
     events.load(event, event_type)
 end
 
+local function logMessage(message)
+    if settings.settings.broadcast == 'None' then
+        print(message)
+    elseif settings.settings.broadcast == 'DanNet' then
+        mq.cmdf('/dgt all ' .. message)
+    elseif settings.settings.broadcast == 'EQBC' then
+        mq.cmdf('/bc ' .. message)
+    end
+end
+
 events.load = function(event, event_type)
     local subfolder = 'events'
     if event_type == events.types.cond then subfolder = 'conditions' end
@@ -94,8 +109,8 @@ events.load = function(event, event_type)
     if not success then
         result = nil
         event.failed = true
-        print('Event registration failed: \ay'..event.name..'\ax')
-        printf('To get more error output, you could try: "/lua run lem/%s/%s"', subfolder, event.name)
+        logMessage(string.format('Event registration failed: \ay%s\ax', event.name))
+        mq.cmdf('/lua run lem/%s/%s', subfolder, event.name)
     else
         event.func = result
         if type(event.func) == 'function' then
@@ -105,12 +120,12 @@ events.load = function(event, event_type)
         if type(event.func) ~= 'table' then
             result = nil
             event.failed = true
-            print('Event registration failed: \ay'..event.name..'\ax, event functions not correctly defined.')
+            logMessage(string.format('Event registration failed: \ay%s\ax, event functions not correctly defined.', event.name))
             return
         end
         success = events.initialize(event)
         if success then
-            print('Registering event: \ay'..event.name..'\ax')
+            logMessage(string.format('Registering event: \ay%s\ax', event.name))
             if event_type == events.types.text then mq.event(event.name, event.pattern, event.func.eventfunc) end
             event.loaded = true
         end
@@ -118,7 +133,7 @@ events.load = function(event, event_type)
 end
 
 events.unload = function(event, event_type)
-    print('Deregistering event: \ay'..event.name..'\ax')
+    logMessage(string.format('Deregistering event: \ay%s\ax', event.name))
     if event_type == events.types.text then mq.unevent(event.name) end
     events.unload_package(event.name, event_type)
     event.loaded = false
@@ -131,11 +146,11 @@ events.evaluate_condition = function(event)
     if success and result then
         success, result = pcall(event.func.actionfunc)
         if not success then
-            print('\arERROR: Failed to invoke action for event: \ax\ay'..event.name..'\ax')
+            logMessage(string.format('Failed to invoke action for event: \ax\ay%s\ax', event.name))
             print('\t\ar'..result..'\ax')
         end
     elseif not success then
-        print('\arERROR: Failed to invoke condition for event: \ax\ay'..event.name..'\ax')
+        logMessage(string.format('Failed to invoke condition for event: \ax\ay%s\ax', event.name))
         print('\t\ar'..result..'\ax')
     end
 end
@@ -216,9 +231,14 @@ events.import = function(import_string, categories)
     if imported_event.category and imported_event.category ~= '' then
         local category_found = false
         for _,category in ipairs(categories) do
-            if category == imported_event.category then
+            if category.name == imported_event.category then
                 category_found = true
                 break
+            end
+            for _,subcategory in ipairs(category.children) do
+                if subcategory.name == imported_event.category then
+                    category_found = true
+                end
             end
         end
         if not category_found then imported_event.category = '' end

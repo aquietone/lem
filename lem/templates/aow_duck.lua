@@ -5,8 +5,11 @@ if not package.loaded['lem.events'] then print('This script is intended to be im
 
 local function event_handler()
     -- pause automation, alternatively have autostand off
+    -- mq.cmdf('/%s pause on', mq.TLO.Me.Class.ShortName())
+    -- mq.cmd('/mqp on')
+    mq.cmdf('/%s autostandonduck off nosave', mq.TLO.Me.Class.ShortName())
     mq.cmd('/boxr pause')
-    mq.cmd('/keypress d')
+    mq.cmd('/keypress DUCK')
 end
 
 return {eventfunc=event_handler}
