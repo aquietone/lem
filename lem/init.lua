@@ -9,7 +9,7 @@ local events = require('lem.events')
 local persistence = require('lem.persistence')
 local templates = require('lem.templates.index')
 require('write')
-local version = '0.6.1'
+local version = '0.6.2'
 
 -- application state
 local state = {
@@ -61,7 +61,7 @@ local function save_settings()
 end
 
 local function save_character_settings()
-    persistence.store(('%s/characters/%s.lua'):format(base_dir, mq.TLO.Me.CleanName():lower()), char_settings)
+    persistence.store(('%s/characters/%s.lua'):format(base_dir, mq.TLO.Me.CleanName():lower():gsub('\'s corpse', '')), char_settings)
 end
 
 local function init_settings()
@@ -95,7 +95,7 @@ local function init_settings()
 end
 
 local function init_char_settings()
-    local my_name = mq.TLO.Me.CleanName():lower()
+    local my_name = mq.TLO.Me.CleanName():lower():gsub('\'s corpse', '')
     local ok, module = pcall(require, 'lem.characters.'..my_name)
     if not ok then
         char_settings = {events={}, conditions={}}

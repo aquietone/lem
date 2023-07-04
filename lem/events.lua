@@ -110,7 +110,7 @@ events.load = function(event, event_type)
         result = nil
         event.failed = true
         logMessage(string.format('Event registration failed: \ay%s\ax', event.name))
-        mq.cmdf('/lua run lem/%s/%s', subfolder, event.name)
+        --mq.cmdf('/lua run lem/%s/%s', subfolder, event.name)
     else
         event.func = result
         if type(event.func) == 'function' then
