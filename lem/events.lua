@@ -107,9 +107,10 @@ events.load = function(event, event_type)
     if event_type == events.types.cond then subfolder = 'conditions' end
     local success, result = pcall(require, 'lem.'..subfolder..'.'..event.name)
     if not success then
-        result = nil
         event.failed = true
         logMessage(string.format('Event registration failed: \ay%s\ax', event.name))
+        printf('\ar%s\ax', result)
+        result = nil
         --mq.cmdf('/lua run lem/%s/%s', subfolder, event.name)
     else
         event.func = result

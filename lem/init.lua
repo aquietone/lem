@@ -9,7 +9,7 @@ local events = require('lem.events')
 local persistence = require('lem.persistence')
 local templates = require('lem.templates.index')
 require('write')
-local version = '0.6.2'
+local version = '0.6.3'
 
 -- application state
 local state = {
