@@ -1,7 +1,6 @@
 --- @type Mq
 local mq = require('mq')
-local persistence = require('lem.persistence')
-local base64 = require('lem.base64')
+local base64 = require('base64')
 local base_dir = mq.luaDir .. '/lem'
 
 local events = {
@@ -13,12 +12,33 @@ function events.setSettings(s)
     settings = s
 end
 
+function events.read_event_file(file)
+    local f,e = io.open(file, 'r')
+    if not f then return error(e) end
+    local contents = f:read('*a')
+    io.close(f)
+    return contents
+end
+
+function events.write_event_file(file, contents)
+    local f,e = io.open(file, 'w')
+    if not f then return error(e) end
+    f:write(contents)
+    io.close(f)
+end
+
+function events.delete_event_file(filename)
+    local command = ('del %s'):format(filename):gsub('/', '\\')
+    local pipe = io.popen(command)
+    if pipe then pipe:close() end
+end
+
 events.filename = function(event_name, event_type)
     return ('%s/%s/%s.lua'):format(base_dir, event_type, event_name)
 end
 
 events.packagename = function(event_name, event_type)
-    return 'lem.'..event_type..'.'..event_name
+    return event_type..'.'..event_name
 end
 
 events.unload_package = function(event_name, event_type)
@@ -103,14 +123,13 @@ local function logMessage(message)
 end
 
 events.load = function(event, event_type)
-    local subfolder = 'events'
-    if event_type == events.types.cond then subfolder = 'conditions' end
-    local success, result = pcall(require, 'lem.'..subfolder..'.'..event.name)
+    local success, result = pcall(require, events.packagename(event.name, event_type))
     if not success then
         event.failed = true
         logMessage(string.format('Event registration failed: \ay%s\ax', event.name))
         printf('\ar%s\ax', result)
         result = nil
+        events.unload_package(event.name, event_type)
         --mq.cmdf('/lua run lem/%s/%s', subfolder, event.name)
     else
         event.func = result
@@ -122,6 +141,7 @@ events.load = function(event, event_type)
             result = nil
             event.failed = true
             logMessage(string.format('Event registration failed: \ay%s\ax, event functions not correctly defined.', event.name))
+            events.unload_package(event.name, event_type)
             return
         end
         success = events.initialize(event)
@@ -129,6 +149,8 @@ events.load = function(event, event_type)
             logMessage(string.format('Registering event: \ay%s\ax', event.name))
             if event_type == events.types.text then mq.event(event.name, event.pattern, event.func.eventfunc) end
             event.loaded = true
+        else
+            events.unload_package(event.name, event_type)
         end
     end
 end
@@ -201,7 +223,7 @@ end
 
 events.export = function(event, event_type)
     if not event.code then
-        event.code = persistence.read_file(events.filename(event.name, event_type))
+        event.code = events.read_event_file(events.filename(event.name, event_type))
     end
     local exported_event = {
         name = event.name,

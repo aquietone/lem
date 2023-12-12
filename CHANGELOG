@@ -1,3 +1,7 @@
+0.7.0
+- Remove persistence.lua and use mq.pickle
+- Handle rounding errors on base64 encode/decode
+- Try a fix for stale event code after failed registrations
 0.6.3
 - Print require stacktrace when event fails to load
 0.6.2

@@ -5,11 +5,12 @@ lua event manager -- aquietone
 local mq = require 'mq'
 ---@type ImGui
 require 'ImGui'
-local events = require('lem.events')
-local persistence = require('lem.persistence')
-local templates = require('lem.templates.index')
+local events = require('events')
+-- for scripts with a check on lem.events being required, since they won't find lem.events if the require used the name events
+require('lem.events')
+local templates = require('templates.index')
 require('write')
-local version = '0.6.3'
+local version = '0.7.0'
 
 -- application state
 local state = {
@@ -57,15 +58,15 @@ local menu_default_width = 120
 local settings, text_events, condition_events, categories, char_settings, filtered_events
 
 local function save_settings()
-    persistence.store(('%s/settings.lua'):format(base_dir), settings)
+    mq.pickle(('%s/settings.lua'):format(base_dir), settings)
 end
 
 local function save_character_settings()
-    persistence.store(('%s/characters/%s.lua'):format(base_dir, mq.TLO.Me.CleanName():lower():gsub('\'s corpse', '')), char_settings)
+    mq.pickle(('%s/characters/%s.lua'):format(base_dir, mq.TLO.Me.CleanName():lower():gsub('\'s corpse', '')), char_settings)
 end
 
 local function init_settings()
-    local ok, module = pcall(require, 'lem.settings')
+    local ok, module = pcall(require, 'settings')
     if not ok then
         settings = {
             text_events = {},
@@ -96,7 +97,7 @@ end
 
 local function init_char_settings()
     local my_name = mq.TLO.Me.CleanName():lower():gsub('\'s corpse', '')
-    local ok, module = pcall(require, 'lem.characters.'..my_name)
+    local ok, module = pcall(require, 'characters.'..my_name)
     if not ok then
         char_settings = {events={}, conditions={}}
         save_character_settings()
@@ -188,7 +189,7 @@ local function save_event()
             if event_type == events.types.text then mq.unevent(add_event.name) end
             events.unload_package(add_event.name, event_type)
         end
-        persistence.write_file(events.filename(add_event.name, event_type), add_event.code)
+        events.write_event_file(events.filename(add_event.name, event_type), add_event.code)
         event_list[add_event.name] = new_event
         save_settings()
         char_settings[event_type][add_event.name] = add_event.enabled
@@ -233,7 +234,7 @@ local function draw_event_editor_general(add_event)
         buttons_active = false
     end
     if ImGui.Button('Load Template') and state.ui.editor.template ~= '' then
-        add_event.code = persistence.read_file(templates.filename(state.ui.editor.template))
+        add_event.code = events.read_event_file(templates.filename(state.ui.editor.template))
     end
     if not buttons_active then
         ImGui.PopStyleColor(3)
@@ -318,7 +319,7 @@ local function draw_event_viewer_general(event)
     end
     ImGui.SameLine()
     if ImGui.Button('Reload Source') then
-        event.code = persistence.read_file(events.filename(event.name, state.ui.editor.event_type))
+        event.code = events.read_event_file(events.filename(event.name, state.ui.editor.event_type))
         events.reload(event, state.ui.editor.event_type)
     end
     if event.failed then
@@ -410,14 +411,14 @@ local function draw_event_control_buttons(event_type)
     if ImGui.Button('View Event') and state.ui.main.event_idx then
         set_editor_state(true, actions.view, event_type, state.ui.main.event_idx)
         if not event.code then
-            event.code = persistence.read_file(events.filename(event.name, event_type))
+            event.code = events.read_event_file(events.filename(event.name, event_type))
         end
     end
     ImGui.SameLine()
     if ImGui.Button('Edit Event') and state.ui.main.event_idx then
         set_editor_state(true, actions.edit, event_type, state.ui.main.event_idx)
         if not event.code then
-            event.code = persistence.read_file(events.filename(event.name, event_type))
+            event.code = events.read_event_file(events.filename(event.name, event_type))
         end
         set_add_event_inputs(event)
     end
@@ -430,7 +431,7 @@ local function draw_event_control_buttons(event_type)
         char_settings[event_type][event.name] = nil
         events.unload_package(event.name, event_type)
         state.ui.main.event_idx = nil
-        persistence.delete_file(events.filename(event.name, event_type))
+        events.delete_event_file(events.filename(event.name, event_type))
         save_settings()
         save_character_settings()
         set_editor_state(false, nil, nil, nil)
@@ -449,7 +450,7 @@ local function draw_event_table_context_menu(event, event_type)
             os.execute('start "" "'..events.filename(event.name, event_type)..'"')
         end
         if ImGui.MenuItem('Reload Source') then
-            event.code = persistence.read_file(events.filename(event.name, event_type))
+            event.code = events.read_event_file(events.filename(event.name, event_type))
             events.reload(event, event_type)
         end
         local event_enabled = char_settings[event_type][event.name] or false
@@ -498,7 +499,7 @@ local function draw_event_table_row(event, event_type)
     if ImGui.IsItemHovered() and ImGui.IsMouseDoubleClicked(0) then
         set_editor_state(true, actions.view, event_type, event.name)
         if not event.code then
-            event.code = persistence.read_file(events.filename(event.name, event_type))
+            event.code = events.read_event_file(events.filename(event.name, event_type))
         end
     end
     ImGui.PopStyleColor()

@@ -11,7 +11,7 @@ local banes = {
     SHM={name='Virulent Paralysis',type='aa'},
 }
 
-if not package.loaded['lem.events'] then print('This script is intended to be imported to Lua Event Manager (LEM). Try "\a-t/lua run lem\a-t"') end
+if not package.loaded['events'] then print('This script is intended to be imported to Lua Event Manager (LEM). Try "\a-t/lua run lem\a-x"') end
 
 local function on_load()
     if mq.TLO.Zone.ShortName() ~= required_zone then return end

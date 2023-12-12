@@ -1,11 +1,11 @@
 ---@type Mq
 local mq = require('mq')
-local library = require('lem.library')
+local library = require('library')
 
 local itemname = 'Journeyman\'s Boots'
 local buffname = 'Journeyman Boots'
 
-if not package.loaded['lem.events'] then print('This script is intended to be imported to Lua Event Manager (LEM). Try "\a-t/lua run lem\a-t"') end
+if not package.loaded['events'] then print('This script is intended to be imported to Lua Event Manager (LEM). Try "\a-t/lua run lem\a-x"') end
 
 ---@return boolean @Returns true if the action should fire, otherwise false.
 local function condition()

@@ -3,7 +3,7 @@ Helper functions for use in writing events.
 
 To use, add the following line to your event code:
 
-    local library = require('lem.library')
+    local library = require('library')
 
 ]]
 --- @type Mq
