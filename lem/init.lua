@@ -10,7 +10,8 @@ local events = require('events')
 require('lem.events')
 local templates = require('templates.index')
 require('write')
-local version = '0.7.0'
+local persistence = require('persistence')
+local version = '0.7.1'
 
 -- application state
 local state = {
@@ -58,16 +59,22 @@ local menu_default_width = 120
 local settings, text_events, condition_events, categories, char_settings, filtered_events
 
 local function save_settings()
-    mq.pickle(('%s/settings.lua'):format(base_dir), settings)
+    persistence.store(('%s/settings.lua'):format(base_dir), settings)
+    --mq.pickle(('%s/settings.lua'):format(base_dir), settings)
 end
 
 local function save_character_settings()
-    mq.pickle(('%s/characters/%s.lua'):format(base_dir, mq.TLO.Me.CleanName():lower():gsub('\'s corpse', '')), char_settings)
+    persistence.store(('%s/characters/%s.lua'):format(base_dir, mq.TLO.Me.CleanName():lower():gsub('\'s corpse', '')), char_settings)
+    --mq.pickle(('%s/characters/%s.lua'):format(base_dir, mq.TLO.Me.CleanName():lower():gsub('\'s corpse', '')), char_settings)
 end
 
 local function init_settings()
     local ok, module = pcall(require, 'settings')
     if not ok then
+        if persistence.file_exists(base_dir..'/settings.lua') then
+            print('\arLEM: Unable to load settings.lua, exiting!\ax')
+            return
+        end
         settings = {
             text_events = {},
             condition_events = {},
@@ -968,6 +975,7 @@ if #args == 1 then
 end
 
 init_settings()
+if not settings then return end
 init_char_settings()
 validate_events()
 mq.imgui.init('Lua Event Manager', lem_ui)
