@@ -473,16 +473,16 @@ local function draw_event_table_context_menu(event, event_type)
         local action = event_enabled and '0' or '1'
         local type_singular = event_type == 'events' and 'event' or 'cond'
         if ImGui.MenuItem(enable_prefix..' For All') then
-            mq.cmdf('/dga /lem %s %s %s', type_singular, event.name, action)
+            mq.cmdf('/dga /lem %s "%s" %s', type_singular, event.name, action)
         end
         if ImGui.MenuItem(enable_prefix..' For Raid') then
-            mq.cmdf('/dgra /lem %s %s %s', type_singular, event.name, action)
+            mq.cmdf('/dgra /lem %s "%s" %s', type_singular, event.name, action)
         end
-        if ImGui.MenuItem(enable_prefix..'For Group') then
-            mq.cmdf('/dgga /lem %s %s %s', type_singular, event.name, action)
+        if ImGui.MenuItem(enable_prefix..' For Group') then
+            mq.cmdf('/dgga /lem %s "%s" %s', type_singular, event.name, action)
         end
         if ImGui.MenuItem('DEBUG: Run event script') then
-            mq.cmdf('/lua run lem/%s/%s', event_type, event.name)
+            mq.cmdf('/lua run "lem/%s/%s"', event_type, event.name)
         end
         ImGui.EndPopup()
     end
