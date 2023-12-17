@@ -11,7 +11,7 @@ require('lem.events')
 local templates = require('templates.index')
 require('write')
 local persistence = require('persistence')
-local version = '0.7.1'
+local version = '0.7.2'
 
 -- application state
 local state = {
@@ -52,7 +52,7 @@ if fileExists(mq.luaDir..'/lem.lua') then
 end
 
 local table_flags = bit32.bor(ImGuiTableFlags.Hideable, ImGuiTableFlags.RowBg, ImGuiTableFlags.ScrollY, ImGuiTableFlags.BordersOuter, ImGuiTableFlags.Resizable)
-local actions = {add=1,edit=2,view=3,add_category=4}
+local actions = {add=1,edit=2,view=3,add_category=4,import=5}
 local base_dir = mq.luaDir .. '/lem'
 local menu_default_width = 120
 
@@ -190,7 +190,7 @@ local function save_event()
         if event_type == events.types.text then
             new_event.pattern = add_event.pattern
         end
-        if state.ui.editor.action == actions.edit then
+        if state.ui.editor.action == actions.edit or (state.ui.editor.action == actions.import and event_list[add_event.name] ~= nil) then
             -- replacing event, disable then unload it first before it is saved
             char_settings[event_type][add_event.name] = nil
             if event_type == events.types.text then mq.unevent(add_event.name) end
@@ -267,6 +267,8 @@ local function draw_event_editor()
     local title = 'Event Editor###lemeditor'
     if state.ui.editor.action == actions.add then
         title = 'Add Event###lemeditor'
+    elseif state.ui.editor.action == actions.import then
+        title = 'Import Event###lemeditor'
     end
     state.ui.editor.open_ui, state.ui.editor.draw_ui = ImGui.Begin(title, state.ui.editor.open_ui)
     if state.ui.editor.draw_ui then
@@ -274,6 +276,12 @@ local function draw_event_editor()
             save_event()
         end
         local add_event = state.inputs.add_event
+        local event_type = state.ui.editor.event_type
+        local event_list = get_event_list(event_type)
+        if state.ui.editor.action == actions.import and event_list[add_event.name] ~= nil then
+            ImGui.SameLine()
+            ImGui.TextColored(1, 0, 0, 1, '(Overwrite existing)')
+        end
         if ImGui.BeginTabBar('EventTabs') then
             if ImGui.BeginTabItem('General') then
                 draw_event_editor_general(add_event)
@@ -293,7 +301,7 @@ local function draw_import_window()
     if ImGui.Button('Import Event') then
         local imported_event = events.import(state.inputs.import, categories)
         if imported_event then
-            set_editor_state(true, actions.add, imported_event.type, nil)
+            set_editor_state(true, actions.import, imported_event.type, nil)
             set_add_event_inputs(imported_event)
             state.inputs.import = ''
         end
@@ -884,7 +892,7 @@ local lem_ui = function()
     ImGui.End()
 
     if state.ui.editor.open_ui then
-        if state.ui.editor.action == actions.add or state.ui.editor.action == actions.edit then
+        if state.ui.editor.action == actions.add or state.ui.editor.action == actions.edit or state.ui.editor.action == actions.import then
             draw_event_editor()
         elseif state.ui.editor.action == actions.view then
             draw_event_viewer()
