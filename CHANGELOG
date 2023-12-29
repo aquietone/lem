@@ -1,5 +1,8 @@
 0.8.0
-- Add LEM TLO
+- Add LEM TLO, see README for full details
+- /echo ${LEM}
+- /echo ${LEM.Event[event1].Enabled}
+- /echo ${LEM.React[react1].Enabled}
 0.7.2
 - Unregister mq event when importing over an existing event
 0.7.1
