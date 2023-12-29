@@ -11,7 +11,7 @@ require('lem.events')
 local templates = require('templates.index')
 require('write')
 local persistence = require('persistence')
-local version = '0.7.2'
+local version = '0.8.0'
 
 -- application state
 local state = {
@@ -525,10 +525,10 @@ local function draw_events_table(event_type)
     local event_list = get_event_list(event_type)
     local new_filter,_ = ImGui.InputTextWithHint('##tablefilter', 'Filter...', state.ui.main.filter, 0)
     if new_filter ~= state.ui.main.filter then
-        state.ui.main.filter = new_filter
+        state.ui.main.filter = new_filter:lower()
         filtered_events = {}
         for event_name,event in pairs(event_list) do
-            if event_name:find(state.ui.main.filter) then
+            if event_name:lower():find(state.ui.main.filter) then
                 filtered_events[event_name] = event
             end
         end
@@ -901,6 +901,9 @@ local lem_ui = function()
         end
     end
 
+    --events.draw(text_events)
+    --events.draw(condition_events)
+
     pop_style()
 end
 
@@ -989,6 +992,54 @@ validate_events()
 mq.imgui.init('Lua Event Manager', lem_ui)
 mq.bind('/lem', cmd_handler)
 mq.bind('/mlem', cmd_handler)
+
+local function init_tlo()
+    mq.DataType.new('LEMEventType', {
+        Members = {
+            Enabled = function(_, event)
+                printf('char_settings=%s char_settings.events=%s event=%s', char_settings, char_settings.events, event)
+                return 'bool', char_settings.events[event.name]
+            end,
+            Category = function(_, event) return 'string', event.category end,
+            Pattern = function(_, event) return 'string', event.pattern end,
+        },
+        ToString = function(event)
+            return ('%s \ay[\ax%s\ay]\ax'):format(event.name, char_settings.events[event.name] and '\agENABLED\ax' or '\arDISABLED\ax')
+        end
+    })
+    mq.DataType.new('LEMReactType', {
+        Members = {
+            Enabled = function(_, react) return 'bool', char_settings.conditions[react.name] end,
+            Category = function(_, react) return 'string', react.category end,
+        },
+        ToString = function(react)
+            return ('%s \ay[\ax%s\ay]\ax'):format(react.name, char_settings.conditions[react.name] and '\agENABLED\ax' or '\arDISABLED\ax')
+        end
+    })
+
+    local LEMType = mq.DataType.new('LEMType', {
+        Members = {
+            Event = function(index)
+                printf('text_events=%s index=%s', text_events, index)
+                return 'LEMEventType', text_events[index]
+            end,
+            React = function(index) return 'LEMReactType', condition_events[index] end,
+            Frequency = function() return 'int', settings.settings.frequency end,
+            Broadcast = function() return 'string', settings.settings.broadcast end,
+            LogLevel = function() return 'string', Write.loglevel end,
+        },
+        ToString = function()
+            return ('Lua Event Manager v%s'):format(version)
+        end
+    })
+
+    local function LEMTLO(_)
+        return LEMType, {}
+    end
+
+    mq.AddTopLevelObject('LEM', LEMTLO)
+end
+init_tlo()
 
 while not state.terminate do
     events.manage(text_events, events.types.text, char_settings)
