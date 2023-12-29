@@ -997,7 +997,6 @@ local function init_tlo()
     mq.DataType.new('LEMEventType', {
         Members = {
             Enabled = function(_, event)
-                printf('char_settings=%s char_settings.events=%s event=%s', char_settings, char_settings.events, event)
                 return 'bool', char_settings.events[event.name]
             end,
             Category = function(_, event) return 'string', event.category end,
@@ -1009,7 +1008,9 @@ local function init_tlo()
     })
     mq.DataType.new('LEMReactType', {
         Members = {
-            Enabled = function(_, react) return 'bool', char_settings.conditions[react.name] end,
+            Enabled = function(_, react)
+                return 'bool', char_settings.conditions[react.name]
+            end,
             Category = function(_, react) return 'string', react.category end,
         },
         ToString = function(react)
@@ -1020,10 +1021,11 @@ local function init_tlo()
     local LEMType = mq.DataType.new('LEMType', {
         Members = {
             Event = function(index)
-                printf('text_events=%s index=%s', text_events, index)
                 return 'LEMEventType', text_events[index]
             end,
-            React = function(index) return 'LEMReactType', condition_events[index] end,
+            React = function(index)
+                return 'LEMReactType', condition_events[index]
+            end,
             Frequency = function() return 'int', settings.settings.frequency end,
             Broadcast = function() return 'string', settings.settings.broadcast end,
             LogLevel = function() return 'string', Write.loglevel end,
