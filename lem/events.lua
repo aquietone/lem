@@ -192,13 +192,27 @@ events.manage = function(event_list, event_type, char_settings)
     end
 end
 
+events.draw = function(event_list)
+    for _, event in pairs(event_list) do
+        if event.loaded and event.func.draw then
+            event.func.draw()
+        end
+    end
+end
+
 local function serialize_table(val, name, skipnewlines, depth)
     skipnewlines = skipnewlines or false
     depth = depth or 0
 
     local tmp = string.rep(" ", depth)
 
-    if name then tmp = tmp .. name .. " = " end
+    if name then
+        if type(name) ~= 'number' then
+            tmp = tmp .. '["' .. name .. '"]' .. " = "
+        else
+            tmp = tmp .. '[' .. name .. ']' .. " = "
+        end
+    end
 
     if type(val) == "table" then
         tmp = tmp .. "{" .. (not skipnewlines and "\n" or "")

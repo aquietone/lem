@@ -11,7 +11,7 @@ require('lem.events')
 local templates = require('templates.index')
 require('write')
 local persistence = require('persistence')
-local version = '0.8.0'
+local version = '0.8.1'
 
 -- application state
 local state = {
