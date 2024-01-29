@@ -21,7 +21,7 @@ library.wait_for_nav = function(wait_time)
 end
 
 ---Navigate to the specified spawn ID and optionally wait for arrival.
----@param x number @The spawn ID to nav to
+---@param id number @The spawn ID to nav to
 ---@param wait_time number @Optional, the time to wait to reach the location
 library.nav_to_id = function(id, wait_time)
     mq.cmdf('/nav id %d', id)
@@ -87,7 +87,7 @@ end
 
 library.spell_types = {spell=1,disc=1,item=1,aa=1}
 ---Check whether a spell can be used (mana cost, in control of character, have reagents, spell ready)
----@param spell userdata @The spell userdata object.
+---@param spell MQSpell @The spell userdata object.
 ---@param spell_type number @The type of spell (spell_types.spell, item or aa).
 library.can_use_spell = function(spell, spell_type)
     if not spell() then return false end
@@ -110,7 +110,7 @@ library.can_use_spell = function(spell, spell_type)
 end
 
 ---Perform stacking and distance checks on the given spell to determine if it should be cast
----@param spell userdata @The spell userdata object.
+---@param spell MQSpell @The spell userdata object.
 ---@param skipselfstack boolean @True if stacking check should be skipped on self, otherwise false.
 ---@return boolean @Returns true if the spell should be used, otherwise false.
 library.should_use_spell = function(spell, skipselfstack)
@@ -191,7 +191,7 @@ library.use_ability = function(name)
 end
 
 ---Determine whether the item is ready, including checking whether the character is currently capable.
----@param item userdata @The item userdata object
+---@param item MQItem @The item userdata object
 ---@return boolean @Returns true if the item is ready to be used, otherwise false.
 library.item_ready = function(item)
     if item() and item.Clicky.Spell() and item.Timer() == '0' then
@@ -203,7 +203,7 @@ library.item_ready = function(item)
 end
 
 ---Use the item specified by item.
----@param item Item @The MQ Item userdata object.
+---@param item MQItem @The MQ Item userdata object.
 ---@return boolean @Returns true if the item was fired, otherwise false.
 library.use_item = function(item)
     if library.item_ready(item) then

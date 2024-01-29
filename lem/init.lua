@@ -11,7 +11,7 @@ require('lem.events')
 local templates = require('templates.index')
 require('write')
 local persistence = require('persistence')
-local version = '0.8.1'
+local version = '0.8.2'
 
 -- application state
 local state = {
@@ -51,7 +51,7 @@ if fileExists(mq.luaDir..'/lem.lua') then
     os.remove(mq.luaDir..'/lem.lua')
 end
 
-local table_flags = bit32.bor(ImGuiTableFlags.Hideable, ImGuiTableFlags.RowBg, ImGuiTableFlags.ScrollY, ImGuiTableFlags.BordersOuter, ImGuiTableFlags.Resizable)
+local table_flags = bit32.bor(ImGuiTableFlags.Hideable, ImGuiTableFlags.RowBg, ImGuiTableFlags.ScrollY, ImGuiTableFlags.BordersOuter, ImGuiTableFlags.Resizable, ImGuiTableFlags.Sortable)
 local actions = {add=1,edit=2,view=3,add_category=4,import=5}
 local base_dir = mq.luaDir .. '/lem'
 local menu_default_width = 120
@@ -521,12 +521,65 @@ local function draw_event_table_row(event, event_type)
     draw_event_table_context_menu(event, event_type)
 end
 
+local ColumnID_OnOff = 1
+local ColumnID_Name = 2
+local current_sort_specs = nil
+local sort_event_type = nil
+local function CompareWithSortSpecs(a, b)
+    for n = 1, current_sort_specs.SpecsCount, 1 do
+        -- Here we identify columns using the ColumnUserID value that we ourselves passed to TableSetupColumn()
+        -- We could also choose to identify columns based on their index (sort_spec.ColumnIndex), which is simpler!
+        local sort_spec = current_sort_specs:Specs(n)
+        local delta = 0
+
+        local sortA = a
+        local sortB = b
+        if sort_spec.ColumnUserID == ColumnID_OnOff then
+            sortA = char_settings[sort_event_type][a.name] or false
+            sortB = char_settings[sort_event_type][b.name] or false
+            if sort_spec.SortDirection == ImGuiSortDirection.Ascending then
+                --return sortA == true and sortB == false or a.name < b.name
+                return sortA and a.name < b.name
+            else
+                --return sortB == true and sortA == false or b.name < a.name
+                return sortB and b.name < a.name
+            end
+        elseif sort_spec.ColumnUserID == ColumnID_Name then
+            sortA = a.name
+            sortB = b.name
+        end
+        if sortA < sortB then
+            delta = -1
+        elseif sortB < sortA then
+            delta = 1
+        else
+            delta = 0
+        end
+
+        if delta ~= 0 then
+            if sort_spec.SortDirection == ImGuiSortDirection.Ascending then
+                return delta < 0
+            end
+            return delta > 0
+        end
+    end
+
+    -- Always return a way to differentiate items.
+    -- Your own compare function may want to avoid fallback on implicit sort specs e.g. a Name compare if it wasn't already part of the sort specs.
+    return a.name < b.name
+end
+
+local sortable_events = {}
+local first_load = true
+
 local function draw_events_table(event_type)
     local event_list = get_event_list(event_type)
     local new_filter,_ = ImGui.InputTextWithHint('##tablefilter', 'Filter...', state.ui.main.filter, 0)
     if new_filter ~= state.ui.main.filter then
         state.ui.main.filter = new_filter:lower()
         filtered_events = {}
+        sortable_events = {}
+        first_load = true
         for event_name,event in pairs(event_list) do
             if event_name:lower():find(state.ui.main.filter) then
                 filtered_events[event_name] = event
@@ -535,13 +588,36 @@ local function draw_events_table(event_type)
     end
     if ImGui.BeginTable('EventTable', 2, table_flags, 0, 0, 0.0) then
         local column_label = 'Event Name'
-        ImGui.TableSetupColumn('On/Off', ImGuiTableColumnFlags.NoSort, 1, 0)
-        ImGui.TableSetupColumn(column_label,     ImGuiTableColumnFlags.DefaultSort,   3, 1)
+        ImGui.TableSetupColumn('On/Off', ImGuiTableColumnFlags.DefaultSort, 1, ColumnID_OnOff)
+        ImGui.TableSetupColumn(column_label,     ImGuiTableColumnFlags.DefaultSort,   3, ColumnID_Name)
         ImGui.TableSetupScrollFreeze(0, 1) -- Make row always visible
         ImGui.TableHeadersRow()
 
+        local sort_specs = ImGui.TableGetSortSpecs()
+        if sort_specs then
+            if sort_specs.SpecsDirty or first_load then
+                first_load = false
+                sortable_events = {}
+                if state.ui.main.filter ~= '' then
+                    for _,event in pairs(filtered_events) do
+                        table.insert(sortable_events, event)
+                    end
+                else
+                    for _,event in pairs(event_list) do
+                        table.insert(sortable_events, event)
+                    end
+                end
+                current_sort_specs = sort_specs
+                sort_event_type = event_type
+                table.sort(sortable_events, CompareWithSortSpecs)
+                sort_event_type = nil
+                current_sort_specs = nil
+                sort_specs.SpecsDirty = false
+            end
+        end
+
         if state.ui.main.filter ~= '' then
-            for _,event in pairs(filtered_events) do
+            for _,event in pairs(sortable_events) do
                 ImGui.TableNextRow()
                 ImGui.TableNextColumn()
                 draw_event_table_row(event, event_type)
@@ -559,7 +635,7 @@ local function draw_events_table(event_type)
                         local subopen = ImGui.TreeNodeEx(subcategory.name, ImGuiTreeNodeFlags.SpanFullWidth)
                         ImGui.TableNextColumn()
                         if subopen then
-                            for _,event in pairs(event_list) do
+                            for _,event in pairs(sortable_events) do
                                 if event.category == subcategory.name then
                                     ImGui.TableNextRow()
                                     ImGui.TableNextColumn()
@@ -569,7 +645,7 @@ local function draw_events_table(event_type)
                             ImGui.TreePop()
                         end
                     end
-                    for _,event in pairs(event_list) do
+                    for _,event in pairs(sortable_events) do
                         if event.category == category.name then
                             ImGui.TableNextRow()
                             ImGui.TableNextColumn()
@@ -579,7 +655,7 @@ local function draw_events_table(event_type)
                     ImGui.TreePop()
                 end
             end
-            for _,event in pairs(event_list) do
+            for _,event in pairs(sortable_events) do
                 if not event.category or event.category == '' then
                     ImGui.TableNextRow()
                     ImGui.TableNextColumn()
@@ -792,7 +868,7 @@ local sections = {
 
 local function draw_selected_section()
     local x,y = ImGui.GetContentRegionAvail()
-    if ImGui.BeginChild("right", x, y-1, true) then
+    if ImGui.BeginChild("right", x, y-1, ImGuiChildFlags.Border) then
         if state.ui.main.menu_idx > 0 then
             sections[state.ui.main.menu_idx].handler(sections[state.ui.main.menu_idx].arg)
         end
@@ -802,7 +878,7 @@ end
 
 local function draw_menu()
     local _,y = ImGui.GetContentRegionAvail()
-    if ImGui.BeginChild("left", state.ui.main.menu_width, y-1, true) then
+    if ImGui.BeginChild("left", state.ui.main.menu_width, y-1, ImGuiChildFlags.Border) then
         if ImGui.BeginTable('MenuTable', 1, table_flags, 0, 0, 0.0) then
             for idx,section in ipairs(sections) do
                 ImGui.TableNextRow()
@@ -811,6 +887,8 @@ local function draw_menu()
                     if state.ui.main.menu_idx ~= idx then
                         state.ui.main.menu_idx = idx
                         state.ui.main.event_idx = nil
+                        state.ui.main.filter = ''
+                        first_load = true
                     end
                 end
             end
@@ -831,7 +909,7 @@ local function draw_splitter(thickness, size0, min_size0)
     ImGui.Button('##splitter', thickness, -1)
     ImGui.PopStyleColor(3)
 
-    ImGui.SetItemAllowOverlap()
+    ImGui.SetNextItemAllowOverlap()
 
     if ImGui.IsItemActive() then
         delta,_ = ImGui.GetMouseDragDelta()

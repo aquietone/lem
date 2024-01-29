@@ -208,9 +208,9 @@ local function serialize_table(val, name, skipnewlines, depth)
 
     if name then
         if type(name) ~= 'number' then
-            tmp = tmp .. '["' .. name .. '"]' .. " = "
+            tmp = tmp .. '["' .. name .. '"] = '
         else
-            tmp = tmp .. '[' .. name .. ']' .. " = "
+            tmp = tmp .. '[' .. name .. '] = '
         end
     end
 
