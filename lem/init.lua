@@ -11,14 +11,16 @@ require('lem.events')
 local templates = require('templates.index')
 require('write')
 local persistence = require('persistence')
-local version = '0.8.2'
+local icons = require('mq.icons')
+local version = '0.9.0'
+local safemode = false
 
 -- application state
 local state = {
     terminate = false,
     ui = {
         main = {
-            title = ('Lua Event Manager (v%s)###lem'):format(version),
+            title = 'Lua Event Manager (v%s)%s###lem',
             open_ui = true,
             draw_ui = true,
             menu_idx = 1,
@@ -57,6 +59,9 @@ local base_dir = mq.luaDir .. '/lem'
 local menu_default_width = 120
 
 local settings, text_events, condition_events, categories, char_settings, filtered_events
+local show_code = false
+local sortable_events = {}
+local first_load = true
 
 local function save_settings()
     persistence.store(('%s/settings.lua'):format(base_dir), settings)
@@ -114,12 +119,13 @@ local function init_char_settings()
 end
 
 local function reset_add_event_inputs(event_type)
-    state.inputs.add_event = {name='', category='', enabled=false, pattern='', load={always=false,zone='',class='',characters='',},}
+    state.inputs.add_event = {name='', category='', enabled=false, pattern='', singlecommand=false, command='', load={always=false,zone='',class='',characters='',},}
     if event_type == events.types.text then
         state.inputs.add_event.code = templates.text_base
     elseif event_type == events.types.cond then
         state.inputs.add_event.code = templates.condition_base
     end
+    show_code = false
 end
 
 local function set_add_event_inputs(event)
@@ -128,6 +134,8 @@ local function set_add_event_inputs(event)
         category=event.category,
         enabled=char_settings[state.ui.editor.event_type][event.name],
         pattern=event.pattern,
+        singlecommand=event.singlecommand,
+        command=event.command,
         code=event.code,
         load=event.load,
     }
@@ -146,6 +154,7 @@ local function set_add_event_inputs(event)
             zone=''
         }
     end
+    show_code = false
 end
 
 local function set_editor_state(open, action, event_type, event_idx)
@@ -153,6 +162,7 @@ local function set_editor_state(open, action, event_type, event_idx)
     state.ui.editor.action = action
     state.ui.editor.event_idx = event_idx
     state.ui.editor.event_type = event_type
+    show_code = false
 end
 
 local function get_event_list(event_type)
@@ -189,6 +199,8 @@ local function save_event()
         new_event.load = {always=add_event.load.always, characters=add_event.load.characters, class=add_event.load.class, zone=add_event.load.zone,}
         if event_type == events.types.text then
             new_event.pattern = add_event.pattern
+            new_event.singlecommand = add_event.singlecommand
+            new_event.command = add_event.command
         end
         if state.ui.editor.action == actions.edit or (state.ui.editor.action == actions.import and event_list[add_event.name] ~= nil) then
             -- replacing event, disable then unload it first before it is saved
@@ -201,6 +213,7 @@ local function save_event()
         save_settings()
         char_settings[event_type][add_event.name] = add_event.enabled
         save_character_settings()
+        first_load = true -- so event list re-sorts with new event included
     end
     state.ui.editor.open_ui = false
 end
@@ -224,6 +237,14 @@ local function draw_event_editor_general(add_event)
     add_event.enabled,_ = ImGui.Checkbox('Event Enabled', add_event.enabled)
     if state.ui.editor.event_type == events.types.text then
         add_event.pattern,_ = ImGui.InputText('Event Pattern', add_event.pattern)
+        add_event.singlecommand = ImGui.Checkbox('Single Command Action', add_event.singlecommand)
+        if add_event.singlecommand then
+            local changed = false
+            add_event.command,changed = ImGui.InputText('Command', add_event.command)
+            if changed then
+                add_event.code = templates.command_base:format(add_event.command)
+            end
+        end
     end
     if ImGui.BeginCombo('Code Templates', state.ui.editor.template or '') then
         for _,template in ipairs(templates.files) do
@@ -249,9 +270,31 @@ local function draw_event_editor_general(add_event)
     ImGui.SameLine()
     ImGui.TextColored(1, 0, 0, 1, 'This will OVERWRITE the existing event code')
     ImGui.NewLine()
-    ImGui.Text('Event Code: (Recommend editing in VS Code)')
-    local x, y = ImGui.GetContentRegionAvail()
-    add_event.code,_ = ImGui.InputTextMultiline('###EventCode', add_event.code, x-100, y-20)
+    if show_code then
+        ImGui.PushStyleColor(ImGuiCol.Text, ImVec4(0,1,0,1))
+        ImGui.Text(icons.FA_TOGGLE_ON)
+    else
+        ImGui.PushStyleColor(ImGuiCol.Text, ImVec4(1,0,0,1))
+        ImGui.Text(icons.FA_TOGGLE_OFF)
+    end
+    if ImGui.IsItemHovered() and ImGui.IsMouseReleased(ImGuiMouseButton.Left) then
+        show_code = not show_code
+    end
+    ImGui.PopStyleColor()
+    ImGui.SameLine()
+    ImGui.Text('Show Code')
+    if show_code then
+        ImGui.Text('Event Code: (Recommend editing in VS Code)')
+        local x, y = ImGui.GetContentRegionAvail()
+        if add_event.singlecommand then
+            ImGui.TextColored(1,1,0,1, 'Editing code is disabled when Single Command is enabled.')
+            ImGui.PushStyleColor(ImGuiCol.Text, 0, 1, 1, 1)
+            ImGui.TextUnformatted(add_event.code)
+            ImGui.PopStyleColor()
+        else
+            add_event.code,_ = ImGui.InputTextMultiline('###EventCode', add_event.code, x-100, y-20)
+        end
+    end
 end
 
 local function draw_event_editor_load(add_event)
@@ -358,13 +401,34 @@ local function draw_event_viewer_general(event)
         ImGui.TextColored(1, 1, 0, 1, 'Pattern: ')
         ImGui.SameLine()
         ImGui.SetCursorPosX(100)
-        ImGui.TextColored(1, 0, 1, 1, event.pattern)
+        ImGui.TextColored(1, 0, 1, 1, '%s', event.pattern)
+        if event.singlecommand then
+            ImGui.TextColored(1, 1, 0, 1, 'Command: ')
+            ImGui.SameLine()
+            ImGui.SetCursorPosX(100)
+            ImGui.TextColored(1, 0, 1, 1, '%s', event.command or '')
+        end
     end
-    ImGui.TextColored(1, 1, 0, 1, 'Code: (Recommend viewing in VS Code)')
-    ImGui.PushStyleColor(ImGuiCol.Text, 0, 1, 1, 1)
-    ImGui.TextUnformatted(event.code)
+    if show_code then
+        ImGui.PushStyleColor(ImGuiCol.Text, ImVec4(0,1,0,1))
+        ImGui.Text(icons.FA_TOGGLE_ON)
+    else
+        ImGui.PushStyleColor(ImGuiCol.Text, ImVec4(1,0,0,1))
+        ImGui.Text(icons.FA_TOGGLE_OFF)
+    end
+    if ImGui.IsItemHovered() and ImGui.IsMouseReleased(ImGuiMouseButton.Left) then
+        show_code = not show_code
+    end
     ImGui.PopStyleColor()
-    ImGui.PopTextWrapPos()
+    ImGui.SameLine()
+    ImGui.Text('Show Code')
+    if show_code then
+        ImGui.TextColored(1, 1, 0, 1, 'Code: (Recommend viewing in VS Code)')
+        ImGui.PushStyleColor(ImGuiCol.Text, 0, 1, 1, 1)
+        ImGui.TextUnformatted(event.code)
+        ImGui.PopStyleColor()
+        ImGui.PopTextWrapPos()
+    end
 end
 
 local function draw_event_viewer_load(event)
@@ -568,9 +632,6 @@ local function CompareWithSortSpecs(a, b)
     -- Your own compare function may want to avoid fallback on implicit sort specs e.g. a Name compare if it wasn't already part of the sort specs.
     return a.name < b.name
 end
-
-local sortable_events = {}
-local first_load = true
 
 local function draw_events_table(event_type)
     local event_list = get_event_list(event_type)
@@ -954,7 +1015,7 @@ end
 local lem_ui = function()
     if not state.ui.main.open_ui then return end
     push_style()
-    state.ui.main.open_ui, state.ui.main.draw_ui = ImGui.Begin(state.ui.main.title, state.ui.main.open_ui)
+    state.ui.main.open_ui, state.ui.main.draw_ui = ImGui.Begin(state.ui.main.title:format(version, safemode and ' - SAFEMODE ENABLED' or ''), state.ui.main.open_ui)
     if state.ui.main.draw_ui then
         local x, y = ImGui.GetWindowSize() -- 148 42
         if x == 148 and y == 42 then
@@ -994,6 +1055,7 @@ local function print_help()
     print('\t- \ay/lem show\ax -- Show the UI.')
     print('\t- \ay/lem hide\ax -- Hide the UI.')
     print('\t- \ay/lem reload\ax -- Reload settings (Currently just restarts the script).')
+    print('\t- \ay/lua run lem safemode\ax -- Start LEM without enabling any events.')
 end
 
 local ON_VALUES = {['on']=1,['1']=1,['true']=1}
@@ -1060,7 +1122,10 @@ end
 
 local args = {...}
 if #args == 1 then
-    if args[1] == 'bg' then state.ui.main.open_ui = false end
+    if args[1] == 'bg' then state.ui.main.open_ui = false printf('\ayLua Event Manager (%s)\ax running in \aybackground\ax.', version) end
+    if args[1] == 'safemode' then safemode = true printf('\ayLua Event Manager (v%s)\ax running in \arSAFEMODE\ax, no events will be enabled.', version) end
+else
+    printf('\ayLua Event Manager (%s)\ax running. Restart with \ay/lua run lem safemode\ax if any event prevents the script from starting', version)
 end
 
 init_settings()
@@ -1079,6 +1144,7 @@ local function init_tlo()
             end,
             Category = function(_, event) return 'string', event.category end,
             Pattern = function(_, event) return 'string', event.pattern end,
+            Command = function(_, event) return 'string', event.command end,
         },
         ToString = function(event)
             return ('%s \ay[\ax%s\ay]\ax'):format(event.name, char_settings.events[event.name] and '\agENABLED\ax' or '\arDISABLED\ax')
@@ -1122,8 +1188,10 @@ end
 init_tlo()
 
 while not state.terminate do
-    events.manage(text_events, events.types.text, char_settings)
-    events.manage(condition_events, events.types.cond, char_settings)
-    mq.doevents()
+    if not safemode then
+        events.manage(text_events, events.types.text, char_settings)
+        events.manage(condition_events, events.types.cond, char_settings)
+        mq.doevents()
+    end
     mq.delay(settings.settings.frequency)
 end

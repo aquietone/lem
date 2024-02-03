@@ -1,3 +1,7 @@
+0.9.0
+- Create single command events without writing code. Single command events allow entering a single slash command to be run when the event fires.
+- Added toggle button on event editor/viewer for showing event code.
+- Added `/lua run lem safemode` option to start LEM without enabling events.
 0.8.2
 - Make event lists sortable by name and maybe by on/off
 0.8.1

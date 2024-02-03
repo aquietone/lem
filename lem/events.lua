@@ -52,6 +52,9 @@ events.changed = function(original_event, new_event)
     if original_event.pattern and original_event.pattern ~= new_event.pattern then
         return true
     end
+    if original_event.command and original_event.command ~= new_event.command then
+        return true
+    end
     if original_event.category ~= new_event.category then
         return true
     end
@@ -147,7 +150,11 @@ events.load = function(event, event_type)
         success = events.initialize(event)
         if success then
             logMessage(string.format('Registering event: \ay%s\ax', event.name))
-            if event_type == events.types.text then mq.event(event.name, event.pattern, event.func.eventfunc) end
+            if event_type == events.types.text then
+                mq.unevent(event.name)
+                mq.delay(1)
+                mq.event(event.name, event.pattern, event.func.eventfunc)
+            end
             event.loaded = true
         else
             events.unload_package(event.name, event_type)
@@ -242,6 +249,8 @@ events.export = function(event, event_type)
     local exported_event = {
         name = event.name,
         pattern = event.pattern,
+        singlecommand = event.singlecommand,
+        command = event.command,
         category = event.category,
         code = base64.enc(event.code),
         type = event_type,
