@@ -1,9 +1,7 @@
 --[[
 lua event manager -- aquietone
 ]]
----@type Mq
 local mq = require 'mq'
----@type ImGui
 require 'ImGui'
 local events = require('events')
 -- for scripts with a check on lem.events being required, since they won't find lem.events if the require used the name events
@@ -12,7 +10,7 @@ local templates = require('templates.index')
 require('write')
 local persistence = require('persistence')
 local icons = require('mq.icons')
-local version = '0.9.0'
+local version = '0.9.1'
 local safemode = false
 
 -- application state

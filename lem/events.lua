@@ -1,4 +1,3 @@
---- @type Mq
 local mq = require('mq')
 local base64 = require('base64')
 local base_dir = mq.luaDir .. '/lem'

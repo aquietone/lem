@@ -1,4 +1,3 @@
----@type Mq
 local mq = require('mq')
 
 local required_zone = 'akhevatwo_mission'

@@ -1,5 +1,4 @@
 -- Swap to 'primal' bandolier when avatar buff is missing in combat
----@type Mq
 local mq = require('mq')
 
 if not package.loaded['events'] then print('This script is intended to be imported to Lua Event Manager (LEM). Try "\a-t/lua run lem\a-x"') end

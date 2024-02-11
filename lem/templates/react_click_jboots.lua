@@ -1,4 +1,3 @@
----@type Mq
 local mq = require('mq')
 local library = require('library')
 

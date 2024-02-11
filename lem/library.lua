@@ -6,7 +6,6 @@ To use, add the following line to your event code:
     local library = require('library')
 
 ]]
---- @type Mq
 local mq = require('mq')
 
 local library = {}
