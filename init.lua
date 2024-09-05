@@ -10,7 +10,7 @@ local templates = require('templates.index')
 require('write')
 local persistence = require('persistence')
 local icons = require('mq.icons')
-local version = '0.9.1'
+local version = '0.9.2'
 local safemode = false
 
 -- application state
@@ -1134,8 +1134,9 @@ mq.imgui.init('Lua Event Manager', lem_ui)
 mq.bind('/lem', cmd_handler)
 mq.bind('/mlem', cmd_handler)
 
+local EventDT, reactDT
 local function init_tlo()
-    mq.DataType.new('LEMEventType', {
+    EventDT = mq.DataType.new('LEMEventType', {
         Members = {
             Enabled = function(_, event)
                 return 'bool', char_settings.events[event.name]
@@ -1148,7 +1149,7 @@ local function init_tlo()
             return ('%s \ay[\ax%s\ay]\ax'):format(event.name, char_settings.events[event.name] and '\agENABLED\ax' or '\arDISABLED\ax')
         end
     })
-    mq.DataType.new('LEMReactType', {
+    reactDT = mq.DataType.new('LEMReactType', {
         Members = {
             Enabled = function(_, react)
                 return 'bool', char_settings.conditions[react.name]
@@ -1163,10 +1164,10 @@ local function init_tlo()
     local LEMType = mq.DataType.new('LEMType', {
         Members = {
             Event = function(index)
-                return 'LEMEventType', text_events[index]
+                return EventDT, text_events[index]
             end,
             React = function(index)
-                return 'LEMReactType', condition_events[index]
+                return reactDT, condition_events[index]
             end,
             Frequency = function() return 'int', settings.settings.frequency end,
             Broadcast = function() return 'string', settings.settings.broadcast end,
