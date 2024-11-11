@@ -242,16 +242,14 @@ local function serialize_table(val, name, skipnewlines, depth)
 end
 
 events.export = function(event, event_type)
-    if not event.code then
-        event.code = events.read_event_file(events.filename(event.name, event_type))
-    end
+    local code = events.read_event_file(events.filename(event.name, event_type))
     local exported_event = {
         name = event.name,
         pattern = event.pattern,
         singlecommand = event.singlecommand,
         command = event.command,
         category = event.category,
-        code = base64.enc(event.code),
+        code = base64.enc(code),
         type = event_type,
         load = event.load,
     }

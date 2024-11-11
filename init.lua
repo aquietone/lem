@@ -11,7 +11,7 @@ local templates = require('templates.index')
 require('write')
 local persistence = require('persistence')
 local icons = require('mq.icons')
-local version = '0.10.1'
+local version = '0.10.2'
 local safemode = false
 
 ---@type Zep.Editor
@@ -32,6 +32,7 @@ local state = {
             category_idx = 0,
             menu_width = 120,
             filter = '',
+            dirty = false,
         },
         editor = {
             open_ui = false,
@@ -125,9 +126,9 @@ end
 local function reset_add_event_inputs(event_type)
     state.inputs.add_event = {name='', category='', enabled=false, pattern='', singlecommand=false, command='', load={always=false,zone='',class='',characters='',},}
     if event_type == events.types.text then
-        state.inputs.add_event.code = templates.text_base
+        buffer:SetText(templates.text_base)
     elseif event_type == events.types.cond then
-        state.inputs.add_event.code = templates.condition_base
+        buffer:SetText(templates.condition_base)
     end
     show_code = false
 end
@@ -211,6 +212,12 @@ local function save_event()
             if event_type == events.types.text then mq.unevent(add_event.name) end
             events.unload_package(add_event.name, event_type)
         end
+        local filename = events.filename(add_event.name, event_type)
+        if buffer.filePath ~= filename then
+            local tmpTxt = buffer:GetText()
+            buffer:Load(filename)
+            buffer:SetText(tmpTxt)
+        end
         buffer:Save()
         event_list[add_event.name] = new_event
         save_settings()
@@ -253,7 +260,7 @@ local function draw_event_editor_general(add_event)
             local changed = false
             add_event.command,changed = ImGui.InputText('Command', add_event.command)
             if changed then
-                add_event.code = templates.command_base:format(add_event.command)
+                buffer:SetText(templates.command_base:format(add_event.command))
             end
         end
     end
@@ -273,35 +280,30 @@ local function draw_event_editor_general(add_event)
         buttons_active = false
     end
     if ImGui.Button('Load Template') and state.ui.editor.template ~= '' then
-        add_event.code = events.read_event_file(templates.filename(state.ui.editor.template))
+        buffer:SetText(events.read_event_file(templates.filename(state.ui.editor.template)))
     end
     if not buttons_active then
         ImGui.PopStyleColor(3)
     end
     ImGui.SameLine()
     ImGui.TextColored(1, 0, 0, 1, 'This will OVERWRITE the existing event code')
-    ImGui.NewLine()
-    if show_code then
-        ImGui.PushStyleColor(ImGuiCol.Text, ImVec4(0,1,0,1))
-        ImGui.Text(icons.FA_TOGGLE_ON)
-    else
-        ImGui.PushStyleColor(ImGuiCol.Text, ImVec4(1,0,0,1))
-        ImGui.Text(icons.FA_TOGGLE_OFF)
-    end
-    if ImGui.IsItemHovered() and ImGui.IsMouseReleased(ImGuiMouseButton.Left) then
-        show_code = not show_code
-    end
-    ImGui.PopStyleColor()
-    ImGui.SameLine()
-    ImGui.Text('Show Code')
-    if show_code then
-        local x, y = ImGui.GetContentRegionAvail()
-        if add_event.singlecommand then
-            ImGui.TextColored(1,1,0,1, 'Editing code is disabled when Single Command is enabled.')
-            ImGui.PushStyleColor(ImGuiCol.Text, 0, 1, 1, 1)
-            ImGui.TextUnformatted(add_event.code)
-            ImGui.PopStyleColor()
+    if not add_event.singlecommand then
+        ImGui.NewLine()
+        if show_code then
+            ImGui.PushStyleColor(ImGuiCol.Text, ImVec4(0,1,0,1))
+            ImGui.Text(icons.FA_TOGGLE_ON)
         else
+            ImGui.PushStyleColor(ImGuiCol.Text, ImVec4(1,0,0,1))
+            ImGui.Text(icons.FA_TOGGLE_OFF)
+        end
+        if ImGui.IsItemHovered() and ImGui.IsMouseReleased(ImGuiMouseButton.Left) then
+            show_code = not show_code
+        end
+        ImGui.PopStyleColor()
+        ImGui.SameLine()
+        ImGui.Text('Show Code')
+        if show_code then
+            local x, y = ImGui.GetContentRegionAvail()
             drawEditor()
         end
     end
@@ -356,6 +358,8 @@ local function draw_import_window()
         if imported_event then
             set_editor_state(true, actions.import, imported_event.type, nil)
             set_add_event_inputs(imported_event)
+            buffer:Load(events.filename(imported_event.name, imported_event.type))
+            buffer:SetText(imported_event.code)
             state.inputs.import = ''
         end
     end
@@ -389,7 +393,7 @@ local function draw_event_viewer_general(event)
     end
     ImGui.SameLine()
     if ImGui.Button('Reload Source') then
-        event.code = events.read_event_file(events.filename(event.name, state.ui.editor.event_type))
+        buffer:Load(events.filename(event.name, state.ui.editor.event_type))
         events.reload(event, state.ui.editor.event_type)
     end
     if event.failed then
@@ -485,6 +489,8 @@ local function draw_event_control_buttons(event_type)
     if ImGui.Button('Add Event...') then
         set_editor_state(true, actions.add, event_type, nil)
         reset_add_event_inputs(event_type)
+        buffer.readonly = false
+        buffer.syntax = 'lua'
     end
     local buttons_active = true
     if not state.ui.main.event_idx then
@@ -495,25 +501,20 @@ local function draw_event_control_buttons(event_type)
     end
     local event = event_list[state.ui.main.event_idx]
     ImGui.SameLine()
-    if ImGui.Button('View Event') and state.ui.main.event_idx then
+    if ImGui.Button('View Event') and state.ui.main.event_idx and event then
         set_editor_state(true, actions.view, event_type, state.ui.main.event_idx)
         buffer.readonly = true
-        if not event.code then
-            buffer:Load(events.filename(event.name, state.ui.editor.event_type))
-        end
+        buffer:Load(events.filename(event.name, state.ui.editor.event_type))
     end
     ImGui.SameLine()
-    if ImGui.Button('Edit Event') and state.ui.main.event_idx then
+    if ImGui.Button('Edit Event') and state.ui.main.event_idx and event then
         set_editor_state(true, actions.edit, event_type, state.ui.main.event_idx)
         buffer.readonly = false
         buffer:Load(events.filename(event.name, event_type))
-        if not event.code then
-            event.code = events.read_event_file(events.filename(event.name, event_type))
-        end
         set_add_event_inputs(event)
     end
     ImGui.SameLine()
-    if ImGui.Button('Remove Event') and state.ui.main.event_idx then
+    if ImGui.Button('Remove Event') and state.ui.main.event_idx and event then
         event_list[event.name] = nil
         if event_type == events.types.text and char_settings[event_type][event.name] then
             mq.unevent(event.name)
@@ -525,6 +526,7 @@ local function draw_event_control_buttons(event_type)
         save_settings()
         save_character_settings()
         set_editor_state(false, nil, nil, nil)
+        state.ui.main.dirty = true
     end
     if not buttons_active then
         ImGui.PopStyleColor(3)
@@ -540,7 +542,7 @@ local function draw_event_table_context_menu(event, event_type)
             os.execute('start "" "'..events.filename(event.name, event_type)..'"')
         end
         if ImGui.MenuItem('Reload Source') then
-            event.code = events.read_event_file(events.filename(event.name, event_type))
+            buffer:Load(events.filename(event.name, event_type))
             events.reload(event, event_type)
         end
         local event_enabled = char_settings[event_type][event.name] or false
@@ -589,9 +591,7 @@ local function draw_event_table_row(event, event_type)
     if ImGui.IsItemHovered() and ImGui.IsMouseDoubleClicked(0) then
         set_editor_state(true, actions.view, event_type, event.name)
         buffer.readonly = true
-        if not event.code then
-            buffer:Load(events.filename(event.name, state.ui.editor.event_type))
-        end
+        buffer:Load(events.filename(event.name, state.ui.editor.event_type))
     end
     ImGui.PopStyleColor()
     draw_event_table_context_menu(event, event_type)
@@ -648,7 +648,7 @@ end
 local function draw_events_table(event_type)
     local event_list = get_event_list(event_type)
     local new_filter,_ = ImGui.InputTextWithHint('##tablefilter', 'Filter...', state.ui.main.filter, 0)
-    if new_filter ~= state.ui.main.filter then
+    if new_filter ~= state.ui.main.filter or state.ui.main.dirty then
         state.ui.main.filter = new_filter:lower()
         filtered_events = {}
         sortable_events = {}
