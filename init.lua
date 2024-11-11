@@ -16,6 +16,8 @@ local safemode = false
 
 ---@type Zep.Editor
 local editor = nil
+---@type Zep.Buffer
+local buffer = nil
 
 -- application state
 local state = {
@@ -188,7 +190,7 @@ local function save_event()
     local event_list = get_event_list(event_type)
     local original_event = event_list[add_event.name]
     -- per character enabled flag currently in use instead of dynamic load options
-    if original_event and not events.changed(original_event, add_event) and not editor.activeBuffer.dirty then
+    if original_event and not events.changed(original_event, add_event) and not buffer.dirty then
         -- code and pattern did not change
         if add_event.enabled ~= char_settings[event_type][add_event.name] then
             -- just enabling or disabling the event
@@ -209,7 +211,7 @@ local function save_event()
             if event_type == events.types.text then mq.unevent(add_event.name) end
             events.unload_package(add_event.name, event_type)
         end
-        editor.activeBuffer:Save()
+        buffer:Save()
         event_list[add_event.name] = new_event
         save_settings()
         char_settings[event_type][add_event.name] = add_event.enabled
@@ -300,7 +302,7 @@ local function draw_event_editor_general(add_event)
             ImGui.TextUnformatted(add_event.code)
             ImGui.PopStyleColor()
         else
-            drawEditor(add_event.code)
+            drawEditor()
         end
     end
 end
@@ -372,8 +374,9 @@ local function draw_event_viewer_general(event)
     local width = ImGui.GetContentRegionAvail()
     ImGui.PushTextWrapPos(width-15)
     if ImGui.Button('Edit Event') then
-        editor.activeBuffer:Load(events.filename(event.name, state.ui.editor.event_type))
+        buffer:Load(events.filename(event.name, state.ui.editor.event_type))
         state.ui.editor.action = actions.edit
+        buffer:ClearFlags(zep.BufferFlags.ReadOnly)
         set_add_event_inputs(event)
     end
     ImGui.SameLine()
@@ -432,11 +435,7 @@ local function draw_event_viewer_general(event)
     ImGui.SameLine()
     ImGui.Text('Show Code')
     if show_code then
-        ImGui.TextColored(1, 1, 0, 1, 'Code: (Recommend viewing in VS Code)')
-        ImGui.PushStyleColor(ImGuiCol.Text, 0, 1, 1, 1)
-        ImGui.TextUnformatted(event.code)
-        ImGui.PopStyleColor()
-        ImGui.PopTextWrapPos()
+        drawEditor()
     end
 end
 
@@ -498,14 +497,16 @@ local function draw_event_control_buttons(event_type)
     ImGui.SameLine()
     if ImGui.Button('View Event') and state.ui.main.event_idx then
         set_editor_state(true, actions.view, event_type, state.ui.main.event_idx)
+        buffer.readonly = true
         if not event.code then
-            event.code = events.read_event_file(events.filename(event.name, event_type))
+            buffer:Load(events.filename(event.name, state.ui.editor.event_type))
         end
     end
     ImGui.SameLine()
     if ImGui.Button('Edit Event') and state.ui.main.event_idx then
         set_editor_state(true, actions.edit, event_type, state.ui.main.event_idx)
-        editor.activeBuffer:Load(events.filename(event.name, event_type))
+        buffer:ClearFlags(zep.BufferFlags.ReadOnly)
+        buffer:Load(events.filename(event.name, event_type))
         if not event.code then
             event.code = events.read_event_file(events.filename(event.name, event_type))
         end
@@ -587,8 +588,9 @@ local function draw_event_table_row(event, event_type)
     end
     if ImGui.IsItemHovered() and ImGui.IsMouseDoubleClicked(0) then
         set_editor_state(true, actions.view, event_type, event.name)
+        buffer.readonly = true
         if not event.code then
-            event.code = events.read_event_file(events.filename(event.name, event_type))
+            buffer:Load(events.filename(event.name, state.ui.editor.event_type))
         end
     end
     ImGui.PopStyleColor()
@@ -1027,7 +1029,7 @@ local lem_ui = function()
 
     if editor == nil then
         editor = zep.Editor.new('##Editor')
-        local activeBuffer = editor.activeBuffer
+        buffer = editor.activeBuffer
     end
 
     push_style()
