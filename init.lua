@@ -188,7 +188,7 @@ local function save_event()
     local event_list = get_event_list(event_type)
     local original_event = event_list[add_event.name]
     -- per character enabled flag currently in use instead of dynamic load options
-    if original_event and not events.changed(original_event, add_event) and not editor.activeBuffer:HasFlag(zep.BufferFlags.Dirty) then
+    if original_event and not events.changed(original_event, add_event) and not editor.activeBuffer.dirty then
         -- code and pattern did not change
         if add_event.enabled ~= char_settings[event_type][add_event.name] then
             -- just enabling or disabling the event
@@ -1027,12 +1027,7 @@ local lem_ui = function()
 
     if editor == nil then
         editor = zep.Editor.new('##Editor')
-    end
-
-    local activeBuffer = editor.activeBuffer
-    activeBuffer.syntax = 'lua'
-    if bit32.band(editor.windowFlags, zep.WindowFlags.ShowLineNumbers) == 0 then
-        editor:ToggleFlag(zep.WindowFlags.ShowLineNumbers)
+        local activeBuffer = editor.activeBuffer
     end
 
     push_style()
