@@ -11,7 +11,7 @@ local templates = require('templates.index')
 require('write')
 local persistence = require('persistence')
 local icons = require('mq.icons')
-local version = '0.10.0'
+local version = '0.10.1'
 local safemode = false
 
 ---@type Zep.Editor
@@ -376,7 +376,7 @@ local function draw_event_viewer_general(event)
     if ImGui.Button('Edit Event') then
         buffer:Load(events.filename(event.name, state.ui.editor.event_type))
         state.ui.editor.action = actions.edit
-        buffer:ClearFlags(zep.BufferFlags.ReadOnly)
+        buffer.readonly = false
         set_add_event_inputs(event)
     end
     ImGui.SameLine()
@@ -505,7 +505,7 @@ local function draw_event_control_buttons(event_type)
     ImGui.SameLine()
     if ImGui.Button('Edit Event') and state.ui.main.event_idx then
         set_editor_state(true, actions.edit, event_type, state.ui.main.event_idx)
-        buffer:ClearFlags(zep.BufferFlags.ReadOnly)
+        buffer.readonly = false
         buffer:Load(events.filename(event.name, event_type))
         if not event.code then
             event.code = events.read_event_file(events.filename(event.name, event_type))
