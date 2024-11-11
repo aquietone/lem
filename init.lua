@@ -3,6 +3,7 @@ lua event manager -- aquietone
 ]]
 local mq = require 'mq'
 require 'ImGui'
+local zep = require('Zep')
 local events = require('events')
 -- for scripts with a check on lem.events being required, since they won't find lem.events if the require used the name events
 require('lem.events')
@@ -10,8 +11,11 @@ local templates = require('templates.index')
 require('write')
 local persistence = require('persistence')
 local icons = require('mq.icons')
-local version = '0.9.2'
+local version = '0.10.0'
 local safemode = false
+
+---@type Zep.Editor
+local editor = nil
 
 -- application state
 local state = {
@@ -179,13 +183,12 @@ end
 local function save_event()
     local event_type = state.ui.editor.event_type
     local add_event = state.inputs.add_event
-    if add_event.code:len() == 0 or add_event.name:len() == 0 then return end
     if event_type == events.types.text and add_event.pattern:len() == 0 then return end
 
     local event_list = get_event_list(event_type)
     local original_event = event_list[add_event.name]
     -- per character enabled flag currently in use instead of dynamic load options
-    if original_event and not events.changed(original_event, add_event) then
+    if original_event and not events.changed(original_event, add_event) and not editor.activeBuffer:HasFlag(zep.BufferFlags.Dirty) then
         -- code and pattern did not change
         if add_event.enabled ~= char_settings[event_type][add_event.name] then
             -- just enabling or disabling the event
@@ -206,7 +209,7 @@ local function save_event()
             if event_type == events.types.text then mq.unevent(add_event.name) end
             events.unload_package(add_event.name, event_type)
         end
-        events.write_event_file(events.filename(add_event.name, event_type), add_event.code)
+        editor.activeBuffer:Save()
         event_list[add_event.name] = new_event
         save_settings()
         char_settings[event_type][add_event.name] = add_event.enabled
@@ -214,6 +217,14 @@ local function save_event()
         first_load = true -- so event list re-sorts with new event included
     end
     state.ui.editor.open_ui = false
+end
+
+local function drawEditor()
+    local footerHeight = 0
+    local contentSizeX, contentSizeY = ImGui.GetContentRegionAvail()
+    contentSizeY = contentSizeY - footerHeight
+
+    editor:Render(ImVec2(contentSizeX, contentSizeY))
 end
 
 local function draw_event_editor_general(add_event)
@@ -282,7 +293,6 @@ local function draw_event_editor_general(add_event)
     ImGui.SameLine()
     ImGui.Text('Show Code')
     if show_code then
-        ImGui.Text('Event Code: (Recommend editing in VS Code)')
         local x, y = ImGui.GetContentRegionAvail()
         if add_event.singlecommand then
             ImGui.TextColored(1,1,0,1, 'Editing code is disabled when Single Command is enabled.')
@@ -290,7 +300,7 @@ local function draw_event_editor_general(add_event)
             ImGui.TextUnformatted(add_event.code)
             ImGui.PopStyleColor()
         else
-            add_event.code,_ = ImGui.InputTextMultiline('###EventCode', add_event.code, x-100, y-20)
+            drawEditor(add_event.code)
         end
     end
 end
@@ -362,6 +372,7 @@ local function draw_event_viewer_general(event)
     local width = ImGui.GetContentRegionAvail()
     ImGui.PushTextWrapPos(width-15)
     if ImGui.Button('Edit Event') then
+        editor.activeBuffer:Load(events.filename(event.name, state.ui.editor.event_type))
         state.ui.editor.action = actions.edit
         set_add_event_inputs(event)
     end
@@ -494,6 +505,7 @@ local function draw_event_control_buttons(event_type)
     ImGui.SameLine()
     if ImGui.Button('Edit Event') and state.ui.main.event_idx then
         set_editor_state(true, actions.edit, event_type, state.ui.main.event_idx)
+        editor.activeBuffer:Load(events.filename(event.name, event_type))
         if not event.code then
             event.code = events.read_event_file(events.filename(event.name, event_type))
         end
@@ -1012,6 +1024,17 @@ end
 -- ImGui main function for rendering the UI window
 local lem_ui = function()
     if not state.ui.main.open_ui then return end
+
+    if editor == nil then
+        editor = zep.Editor.new('##Editor')
+    end
+
+    local activeBuffer = editor.activeBuffer
+    activeBuffer.syntax = 'lua'
+    if bit32.band(editor.windowFlags, zep.WindowFlags.ShowLineNumbers) == 0 then
+        editor:ToggleFlag(zep.WindowFlags.ShowLineNumbers)
+    end
+
     push_style()
     state.ui.main.open_ui, state.ui.main.draw_ui = ImGui.Begin(state.ui.main.title:format(version, safemode and ' - SAFEMODE ENABLED' or ''), state.ui.main.open_ui)
     if state.ui.main.draw_ui then
