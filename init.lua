@@ -212,8 +212,8 @@ local function save_event()
             if event_type == events.types.text then mq.unevent(add_event.name) end
             events.unload_package(add_event.name, event_type)
         end
-        local filename = events.filename(add_event.name, event_type)
-        if buffer.filePath ~= filename then
+        if not buffer.filePath:find(add_event.name) then
+            local filename = events.filename(add_event.name, event_type)
             local tmpTxt = buffer:GetText()
             buffer:Load(filename)
             buffer:SetText(tmpTxt)
