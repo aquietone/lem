@@ -1,7 +1,7 @@
 local mq = require('mq')
 
 local function event_handler(line, target)
-    if not mq.TLO.Zone.ShortName() == 'vexthaltwo_mission' then return end
+    if mq.TLO.Zone.ShortName() ~= 'vexthaltwo_mission' then return end
 
     local my_class = mq.TLO.Me.Class.ShortName()
     local i_am_ma = mq.TLO.Group.Member(0).MainAssist()
